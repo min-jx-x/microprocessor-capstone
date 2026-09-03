@@ -1,0 +1,33 @@
+# Arduino
+*.hex
+*.elf
+*.eep
+build/
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Python (server/AI 쪽에서 쓸 경우)
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Node (웹/앱 클라이언트를 쓸 경우)
+node_modules/
+dist/
+.next/
+.env
+.env.local
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 비밀키·API 키
+*.key
+secrets.json
+config.local.*
