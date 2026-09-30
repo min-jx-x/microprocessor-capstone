@@ -2,6 +2,21 @@
 
 지원금 지급 전이라 아직 발주 안 함. 확정되면 이 표를 업데이트하고 4주차 제안서 통과 후 바로 발주.
 
+## 공통 부품 — 디바이스마트 장바구니 확정 (2026-09-30, 결제 전 담기 완료)
+
+구매처: [디바이스마트(devicemart.co.kr)](https://www.devicemart.co.kr/)
+
+| 부품 | 상품코드 | 가격 | 수량 | 구매 링크 |
+|---|---|---|---|---|
+| BH1750 디지털 조도 센서 모듈 GY-302 | SZH-EK070 | 2,500원 | 1 | [devicemart.co.kr/goods/view?no=1289977](https://www.devicemart.co.kr/goods/view?no=1289977) |
+| 아두이노 1채널 5V 미니 릴레이 모듈 | SZH-EK082 | 1,000원 | 1 | [devicemart.co.kr/goods/view?no=1358496](https://www.devicemart.co.kr/goods/view?no=1358496) |
+| ESP8266 NodeMCU V3 WIFI 개발보드 CH340 | VLT-WF026 | 6,600원 | 1 | [devicemart.co.kr/goods/view?no=15960887](https://www.devicemart.co.kr/goods/view?no=15960887) |
+
+상품 주문 금액 10,100원 + 부가세 1,010원 + 배송비 2,700원 = **결제 예정금액 13,810원**
+
+- 아두이노 우노 R3 보드는 기존 보유분 사용 — 이번 장바구니엔 포함 안 함 (2026-09-30 확인)
+- 결제(주문 확정) 전 상태 — 장바구니는 일주일 후 자동 삭제되니 제출/결제 기한 확인 필요
+
 ## Tier 1 — 데모 시연용 (최소 구성)
 
 | 부품 | 사양 | 가격대 | 비고 |
