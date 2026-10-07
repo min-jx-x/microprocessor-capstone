@@ -31,3 +31,21 @@ Thumbs.db
 *.key
 secrets.json
 config.local.*
+
+# 비밀 값
+secrets.h
+*.env
+
+# 수집한 원본 로그 (필요한 샘플만 따로 골라 올릴 것)
+data/raw/*
+!data/raw/.gitkeep
+
+# 학습으로 생성되는 파일 (재생성 가능)
+server/ai/data/synthetic.csv
+server/ai/data/test_vectors.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
