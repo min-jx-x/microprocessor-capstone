@@ -1,8 +1,8 @@
 """캘리브레이션 측정값(구동값 vs lux)으로 룩업테이블을 만든다.
 
 입력 CSV: 줄마다 "drive,lux" (calibration_sweep 스케치 출력). '#'로 시작하는 줄과 숫자가 아닌 줄은 무시.
-    python tools/make_lut.py data/raw/sweep.csv --levels 5
-    python tools/make_lut.py data/raw/sweep.csv --levels 5 --ref-lux 850   # 필름 없이 잰 기준 lux가 있을 때
+    python tools/make_lut.py data/raw/sweep.csv --levels 4
+    python tools/make_lut.py data/raw/sweep.csv --levels 4 --ref-lux 850   # 필름 없이 잰 기준 lux가 있을 때
 
 방식:
   - 투과율 T = lux / 기준 lux.  --ref-lux 가 없으면 가장 밝은 측정값을 기준(1.0)으로 하는 "상대 투과율"이다.
@@ -36,7 +36,7 @@ def read_rows(path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("path")
-    ap.add_argument("--levels", type=int, default=5)
+    ap.add_argument("--levels", type=int, default=4)
     ap.add_argument("--ref-lux", type=float, default=None)
     args = ap.parse_args()
 
