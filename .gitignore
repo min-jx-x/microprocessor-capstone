@@ -53,3 +53,5 @@ venv/
 # LightQ 실행 로그 DB (실행할 때마다 생김)
 pi/data/*.db
 pi/data/*.db-journal
+pi/data/ai_dataset.csv
+pi/data/eval_*.csv

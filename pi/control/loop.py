@@ -4,13 +4,14 @@
 웹은 snapshot()으로 현재 상태를 읽고, set_manual()/set_mode()/set_wake_time()으로 명령만 보낸다.
 장치(센서·릴레이)는 바깥에서 넣어 주므로, 같은 코드가 노트북(가짜 장치)과 Pi(실제 장치)에서 돈다.
 """
+import os
 import threading
 import time
 from collections import deque
 from typing import Optional
 
 from pi import config
-from pi.control.decide import decide_rule, load_lut, parse_hhmm
+from pi.control.decide import RulePolicy, load_lut, parse_hhmm
 
 # 대현이 만든 정식 모듈이 있으면 그것을, 없으면 임시 버전을 쓴다.
 try:
@@ -32,6 +33,15 @@ class Controller:
         self.driver = LevelDriver(relays)
         self.stab = Stabilizer()
         self.lut = load_lut()
+        # 판단 방식: 규칙은 항상, AI는 모델 파일(pi/data/ai_tree.json)이 있을 때만
+        self.policies = {"rule": RulePolicy(self.lut)}
+        self.ai_meta = None
+        if os.path.exists("pi/data/ai_tree.json"):
+            from pi.ai.policy import AIPolicy
+            ai = AIPolicy(self.lut)
+            self.policies["ai"] = ai
+            self.ai_meta = ai.meta
+        self.brain = "ai" if "ai" in self.policies else "rule"
 
         self.lock = threading.Lock()    # 웹 요청 스레드와 제어 스레드가 상태를 같이 만지므로
         self.mode = "auto"              # auto: 규칙이 단계 결정 / manual: 사용자가 고른 단계 유지
@@ -55,24 +65,30 @@ class Controller:
         vtime = self.clock.now().strftime("%H:%M:%S")
         event = ""
         with self.lock:
-            cand, info = decide_rule(lux, hour, self.level, self.lut,
-                                     parse_hhmm(self.wake_time))
+            wake = parse_hhmm(self.wake_time)
+            # 모든 판단 방식에 매번 값을 넣어 준다 (AI는 최근 4회 기록이 필요하므로,
+            # 도중에 바꿔도 바로 동작하게). 실제 적용은 선택된 방식의 답만 쓴다.
+            answers = {k: p.decide(lux, hour, self.level, wake) for k, p in self.policies.items()}
+            cand, info = answers[self.brain]
             if self.mode == "auto":
                 now = time.monotonic()
                 nxt = self.stab.propose(cand, self.level, now)
                 if nxt is not None:
                     self.driver.apply(nxt)
                     self.stab.mark_switched(now)
-                    event = f"auto {self.level}->{nxt}"
+                    event = f"{self.brain} {self.level}->{nxt}"
                     self.level = nxt
                     self.switches += 1
-            self.lux, self.info = lux, dict(info, candidate=cand)
+            self.lux = lux
+            self.info = dict(info, candidate=cand,
+                             answers={k: v[0] for k, v in answers.items()})
             point = {"t": vtime, "hour": round(hour, 3), "lux": lux,
                      "target": info["target"], "level": self.level}
             if self.outdoor is not None:
                 point["outdoor"] = round(self.outdoor.last, 1)
             self.history.append(point)
-            mode, level = self.mode, self.level
+            mode = self.mode if self.mode == "manual" else self.brain
+            level = self.level
         if self.store is not None:
             self.store.add(vtime, hour, lux, info["target"], level, mode, event)
 
@@ -122,6 +138,13 @@ class Controller:
             self.mode = mode
             self.stab.reset()           # 자동으로 돌아올 때 이전 연속 횟수는 버린다
 
+    def set_brain(self, name: str) -> None:
+        if name not in self.policies:
+            raise ValueError("사용할 수 없는 판단 방식")
+        with self.lock:
+            self.brain = name
+            self.stab.reset()
+
     def set_wake_time(self, text: str) -> None:
         parse_hhmm(text)                # 형식이 틀리면 여기서 예외
         with self.lock:
@@ -134,6 +157,9 @@ class Controller:
                 "vtime": self.clock.now().strftime("%H:%M:%S"),
                 "speed": getattr(self.clock, "speed", 1),
                 "mode": self.mode,
+                "brain": self.brain,
+                "brains": list(self.policies),
+                "ai_meta": self.ai_meta,
                 "level": self.level,
                 "films": {"A": a, "B": b},
                 "lux": self.lux,
