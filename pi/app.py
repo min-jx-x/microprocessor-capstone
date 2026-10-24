@@ -17,6 +17,7 @@ from flask import Flask, Response, jsonify, render_template, request
 
 from pi import config
 from pi.control.loop import Controller
+from pi.control.preference import PreferenceStore
 from pi.storage import LogStore
 
 
@@ -91,6 +92,19 @@ def create_app(ctrl: Controller, store: LogStore) -> Flask:
             return jsonify(error=str(e)), 400
         return jsonify(ok=True)
 
+    @app.post("/api/pref/profile")
+    def pref_profile():
+        try:
+            ctrl.set_profile(str(body().get("name", "")))
+        except ValueError as e:
+            return jsonify(error=str(e)), 400
+        return jsonify(ok=True)
+
+    @app.post("/api/pref/reset")
+    def pref_reset():
+        ctrl.reset_preference()
+        return jsonify(ok=True)
+
     @app.post("/api/settings")
     def settings():
         try:
@@ -144,7 +158,7 @@ def main() -> None:
 
     sensor, relays, clock, outdoor = build_devices(args.real, args.speed, args.start)
     store = LogStore(config.DB_PATH)
-    ctrl = Controller(sensor, relays, clock, outdoor, store)
+    ctrl = Controller(sensor, relays, clock, outdoor, store, PreferenceStore())
     ctrl.start()
     app = create_app(ctrl, store)
     try:

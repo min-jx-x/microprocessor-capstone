@@ -35,6 +35,23 @@
 
   <section class="panel">
     <div class="row between">
+      <h2>개인 선호</h2>
+      <div class="row">
+        <select id="profile" aria-label="사용자"></select>
+        <input id="new-profile" placeholder="새 사용자" maxlength="20" size="8">
+        <button id="profile-add">추가</button>
+      </div>
+    </div>
+    <div class="pref-grid">
+      <div><span class="k">아침 목표</span><div><b id="pref-morning">-</b></div><div class="sub" id="pref-morning-n"></div></div>
+      <div><span class="k">주간 목표</span><div><b id="pref-day">-</b></div><div class="sub" id="pref-day-n"></div></div>
+    </div>
+    <p class="hint" id="pref-text">단계를 직접 바꾸면 3초 동안 실내 조도를 재서 그 밝기를 이 사용자의 선호로 배웁니다.</p>
+    <button id="pref-reset" class="small-btn">이 사용자 선호 초기화</button>
+  </section>
+
+  <section class="panel">
+    <div class="row between">
       <h2>단계 조절</h2>
       <div class="seg" role="group" aria-label="제어 모드">
         <button id="mode-auto" data-mode="auto">자동</button>

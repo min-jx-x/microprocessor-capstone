@@ -109,6 +109,7 @@ function render(st) {
   document.querySelectorAll(".lv").forEach((b) =>
     b.classList.toggle("on", Number(b.dataset.level) === st.level));
   if (!wakeEdited) $("wake").value = st.wake_time;
+  renderPref(st.pref);
   document.querySelectorAll("[data-brain]").forEach((b) => {
     b.classList.toggle("on", b.dataset.brain === st.brain);
     b.disabled = !st.brains.includes(b.dataset.brain);
@@ -138,6 +139,35 @@ function render(st) {
   drawLevels(st.history, st.num_levels);
 }
 
+// ---------- 개인 선호 ----------
+let profileKey = "";
+function renderPref(p) {
+  if (!p) return;
+  const key = p.profiles.join("|") + "#" + p.active;
+  if (key !== profileKey && document.activeElement !== $("profile")) {   // 목록이 바뀔 때만 다시 그림
+    const sel = $("profile");
+    sel.replaceChildren(...p.profiles.map((n) => {   // 이름은 textContent로 넣어 HTML로 해석되지 않게
+      const o = document.createElement("option");
+      o.textContent = n;
+      o.selected = n === p.active;
+      return o;
+    }));
+    profileKey = key;
+  }
+  for (const g of ["morning", "day"]) {
+    const [base, mine] = p.targets[g];
+    const pct = Math.round(p.offset[g] * 100);
+    $(`pref-${g}`).textContent = base === mine ? `${base} lux` : `${base} → ${mine} lux`;
+    $(`pref-${g}-n`).textContent = `학습 ${p.count[g]}회` + (pct ? ` · ${pct > 0 ? "+" : ""}${pct}%` : "");
+  }
+  const last = p.last;
+  $("pref-text").textContent = p.measuring
+    ? "선호 조도 측정 중… (3초)"
+    : last
+      ? `${last.vtime} ${last.period_name} ${last.preferred} lux를 선호로 학습 → 목표 보정 ${last.offset > 0 ? "+" : ""}${Math.round(last.offset * 100)}%`
+      : "단계를 직접 바꾸면 3초 동안 실내 조도를 재서 그 밝기를 이 사용자의 선호로 배웁니다.";
+}
+
 async function refresh() {
   try {
     const r = await fetch("/api/state");
@@ -157,6 +187,14 @@ document.querySelectorAll("[data-mode]").forEach((b) =>
 document.querySelectorAll("#speeds button").forEach((b) =>
   b.addEventListener("click", () => post("/api/sim/speed", { speed: Number(b.dataset.speed) })));
 $("burst").addEventListener("click", () => post("/api/sim/burst"));
+$("profile").addEventListener("change", () => post("/api/pref/profile", { name: $("profile").value }));
+$("profile-add").addEventListener("click", async () => {
+  const name = $("new-profile").value.trim();
+  if (!name) return;
+  await post("/api/pref/profile", { name });
+  $("new-profile").value = "";
+});
+$("pref-reset").addEventListener("click", () => post("/api/pref/reset"));
 $("wake").addEventListener("input", () => { wakeEdited = true; });
 $("wake-save").addEventListener("click", async () => {
   try {

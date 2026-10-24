@@ -8,7 +8,9 @@ from collections import deque
 from typing import Dict, List, Tuple
 
 from pi.ai.features import HISTORY, make_features
-from pi.control.decide import PERIOD_NAMES, incident_of, schedule
+from typing import Optional
+
+from pi.control.decide import PERIOD_NAMES, incident_of, personal_target
 
 DEFAULT_MODEL = "pi/data/ai_tree.json"
 
@@ -40,9 +42,12 @@ class AIPolicy:
             node = m["left"][node] if go_left else m["right"][node]
         return m["classes"][m["leaf_class"][node]]
 
-    def decide(self, lux: float, hour: float, cur: int, wake_hour: float) -> Tuple[int, Dict]:
-        period, target = schedule(hour, wake_hour)
-        info = {"period": period, "period_name": PERIOD_NAMES[period], "target": target}
+    def decide(self, lux: float, hour: float, cur: int, wake_hour: float,
+               scale: Optional[Dict[str, float]] = None) -> Tuple[int, Dict]:
+        # 개인 선호 보정은 목표값만 바꾼다. 모델(빛 변화 예측)은 사용자와 무관한 공통 모델
+        period, target, base = personal_target(hour, wake_hour, scale)
+        info = {"period": period, "period_name": PERIOD_NAMES[period], "target": target,
+                "base_target": base}
         inc = incident_of(lux, cur, self.lut)
         self.hist.append(inc)               # 저녁에도 기록은 이어서 쌓는다
         if target is None:

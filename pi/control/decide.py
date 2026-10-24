@@ -62,11 +62,22 @@ def incident_of(lux: float, cur: int, lut: List[float]) -> float:
     return max(lux / lut[cur], 1.0)     # 어두울 때 0으로 나누기 방지
 
 
+def personal_target(hour: float, wake_hour: float,
+                    scale: Optional[Dict[str, float]] = None) -> Tuple[str, Optional[float], Optional[float]]:
+    """(시간대, 개인 보정이 반영된 목표, 기본 목표). 규칙과 AI가 같이 쓴다."""
+    period, base = schedule(hour, wake_hour)
+    if base is None:
+        return period, None, None
+    return period, base * (scale or {}).get(period, 1.0), base
+
+
 def decide_rule(lux: float, hour: float, cur: int, lut: List[float],
-                wake_hour: float) -> Tuple[int, Dict]:
-    """다음 단계와 판단 근거(info)를 돌려준다. info는 화면 표시와 로그에 쓴다."""
-    period, target = schedule(hour, wake_hour)
-    info = {"period": period, "period_name": PERIOD_NAMES[period], "target": target}
+                wake_hour: float, scale: Optional[Dict[str, float]] = None) -> Tuple[int, Dict]:
+    """다음 단계와 판단 근거(info)를 돌려준다. info는 화면 표시와 로그에 쓴다.
+    scale: 개인 선호 보정 배율 (pi/control/preference.py). 없으면 기본 목표."""
+    period, target, base = personal_target(hour, wake_hour, scale)
+    info = {"period": period, "period_name": PERIOD_NAMES[period], "target": target,
+            "base_target": base}
     if target is None:                      # 취침·저녁: 0단계 고정
         return 0, info
 
@@ -84,8 +95,9 @@ class RulePolicy:
     def __init__(self, lut: List[float]) -> None:
         self.lut = lut
 
-    def decide(self, lux: float, hour: float, cur: int, wake_hour: float) -> Tuple[int, Dict]:
-        return decide_rule(lux, hour, cur, self.lut, wake_hour)
+    def decide(self, lux: float, hour: float, cur: int, wake_hour: float,
+               scale: Optional[Dict[str, float]] = None) -> Tuple[int, Dict]:
+        return decide_rule(lux, hour, cur, self.lut, wake_hour, scale)
 
     def reset(self) -> None:
         pass
