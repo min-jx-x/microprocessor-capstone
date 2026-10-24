@@ -70,3 +70,33 @@ def run_day(policy, profile: Optional[Sequence[float]] = None, dt_s: float = 720
             stab.mark_switched(now)
             level = nxt
     return rows, burst_starts
+
+
+def run_scene(policy, seed: int = 0, hour: float = 12.0, steps: int = 70,
+              burst_at: int = 20, extra_lux: float = 1500.0, rise_steps: int = 8,
+              hold_steps: int = 12, wake_hour: float = 7.5) -> List[Dict]:
+    """직사광 한 번만 들어오는 짧은 장면 (그래프용). 1회 = 실제 1초, 가상 시계도 1배속."""
+    clock = {"h": hour}
+    outdoor = OutdoorLight(lambda: clock["h"], peak_lux=2000.0, seed=seed)
+    relays = SimRelays()
+    sensor = SimSensor(relays, outdoor, ambient_lux=AMBIENT_LUX, seed=seed + 1)
+    driver = LevelDriver(relays, settle_s=0)
+    stab = Stabilizer()
+    policy.reset()
+    driver.apply(0)
+    level, rows = 0, []
+    for i in range(steps):
+        clock["h"] = hour + i / 3600
+        if i == burst_at:
+            outdoor.trigger_burst(extra_lux, rise_steps=rise_steps, hold_steps=hold_steps)
+        _, target = schedule(clock["h"], wake_hour)
+        lux = sensor.read_lux()
+        cand, _ = policy.decide(lux, clock["h"], level, wake_hour)
+        rows.append({"i": i, "lux": lux, "target": target, "level": level,
+                     "outdoor": outdoor.last, "cand": cand})
+        nxt = stab.propose(cand, level, float(i))
+        if nxt is not None:
+            driver.apply(nxt)
+            stab.mark_switched(float(i))
+            level = nxt
+    return rows
