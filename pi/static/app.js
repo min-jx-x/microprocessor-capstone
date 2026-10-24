@@ -94,7 +94,7 @@ let wakeEdited = false;
 
 function render(st) {
   $("vtime").textContent = st.vtime;
-  $("speed").textContent = st.sim && st.speed !== 1 ? `${st.speed}×` : "";
+  $("speed").textContent = st.speed === 0 ? "시각 고정" : st.speed !== 1 ? `${st.speed}×` : "";
   $("lux").textContent = st.lux == null ? "-" : Math.round(st.lux);
   const tgt = st.info && st.info.target;
   $("target").textContent = tgt == null ? "차광" : Math.round(tgt);
@@ -115,7 +115,15 @@ function render(st) {
   });
   const ans = (st.info && st.info.answers) || {};
   const rate = st.info && st.info.rate != null ? ` · 빛 변화율 ${(st.info.rate * 100).toFixed(0)}%` : "";
-  const meta = st.ai_meta ? `AI = 결정트리(깊이 ${st.ai_meta.depth}, 시험 정확도 ${(st.ai_meta.test_acc * 100).toFixed(0)}%)` : "AI 모델 파일 없음";
+  const lutText = st.lut_source === "measured" ? "실측 투과율" : "가정 투과율";
+  const meta = (st.ai_meta ? `AI = 결정트리(깊이 ${st.ai_meta.depth}, 시험 정확도 ${(st.ai_meta.test_acc * 100).toFixed(0)}%)` : "AI 모델 파일 없음") + ` · ${lutText}`;
+  // 경고: 센서 연속 실패, 또는 투과율표가 바뀌었는데 AI를 다시 학습하지 않음
+  const warns = [];
+  if (st.sensor_fail >= st.sensor_fail_limit) warns.push(`센서 응답 없음 (${st.sensor_fail}회 연속) → 0단계로 전환함. 센서 배선을 확인하세요.`);
+  else if (st.sensor_fail > 0) warns.push(`센서 읽기 실패 ${st.sensor_fail}회`);
+  if (st.ai_meta && st.ai_meta.stale) warns.push("AI 모델이 지금과 다른 투과율표로 학습됨 → 노트북에서 python -m pi.ai.retrain 후 다시 올리세요.");
+  $("alert").hidden = warns.length === 0;
+  $("alert").textContent = warns.join(" / ");
   $("brain-text").textContent = st.info && st.info.target != null
     ? `지금 판단 — 규칙 ${ans.rule ?? "-"}단계, AI ${ans.ai ?? "-"}단계${rate}. ${meta}`
     : `목표가 없는 시간대라 두 방식 모두 0단계. ${meta}`;

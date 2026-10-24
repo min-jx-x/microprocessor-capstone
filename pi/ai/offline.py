@@ -10,15 +10,15 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from pi import config
 from pi.control.decide import schedule
 from pi.control.loop import LevelDriver, Stabilizer
-from pi.devices.sim import FILM_T, SimRelays, SimSensor
+from pi.devices.sim import SimRelays, SimSensor, default_ambient, level_transmittance
 from pi.sim.outdoor import OutdoorLight
 
-AMBIENT_LUX = 5.0
+AMBIENT_LUX = default_ambient()
 
 
 def sim_transmittance(level: int) -> float:
-    a, b = config.LEVELS[level]
-    return FILM_T[a] * FILM_T[b]
+    """시뮬레이터가 쓰는 단계별 절대 투과율 (실측 lut.json이 있으면 실측 기준)."""
+    return level_transmittance(level)
 
 
 def run_day(policy, profile: Optional[Sequence[float]] = None, dt_s: float = 720.0,

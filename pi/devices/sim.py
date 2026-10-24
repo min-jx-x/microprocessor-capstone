@@ -13,6 +13,24 @@ from pi import config
 # 실측(pi/tools/calibrate.py) 후 pi/data/lut.json 값으로 바꾼다.
 # 두 장을 겹치면 투과율이 곱해진다. 예: high + low = 0.8 * 0.45 = 0.36
 FILM_T = {"off": 0.30, "low": 0.45, "high": 0.80}
+SIM_T_TOP = FILM_T["high"] * FILM_T["high"]   # 가장 밝은 단계의 절대 투과율 (실측은 상대값뿐이라 이 값으로 크기를 맞춤)
+
+
+def combo_transmittance(a: str, b: str) -> float:
+    """필름 조합의 투과율. 실측 lut.json이 있으면 실측 상대값 × SIM_T_TOP, 없으면 가정값의 곱."""
+    if config.CALIBRATION is not None and (a, b) in config.LEVELS:
+        return SIM_T_TOP * config.LUT_T[config.LEVELS.index((a, b))]
+    return FILM_T[a] * FILM_T[b]
+
+
+def level_transmittance(level: int) -> float:
+    return combo_transmittance(*config.LEVELS[level])
+
+
+def default_ambient() -> float:
+    """실측 때 잰 실내 잡광이 있으면 그 값, 없으면 5 lux."""
+    cal = config.CALIBRATION
+    return cal.ambient if cal is not None and cal.ambient > 0 else 5.0
 
 
 class SimRelays:
@@ -44,7 +62,7 @@ class SimRelays:
 
 class SimSensor:
     def __init__(self, relays: SimRelays, outdoor_lux: Callable[[], float],
-                 ambient_lux: float = 5.0, noise: float = 0.02,
+                 ambient_lux: Optional[float] = None, noise: float = 0.02,
                  seed: Optional[int] = None) -> None:
         """
         relays      : 필름 상태를 읽어 올 SimRelays
@@ -54,13 +72,12 @@ class SimSensor:
         """
         self.relays = relays
         self.outdoor_lux = outdoor_lux
-        self.ambient_lux = ambient_lux
+        self.ambient_lux = default_ambient() if ambient_lux is None else ambient_lux
         self.noise = noise
         self.rng = random.Random(seed)
 
     def transmittance(self) -> float:
-        a, b = self.relays.film_states()
-        return FILM_T[a] * FILM_T[b]
+        return combo_transmittance(*self.relays.film_states())
 
     def read_lux(self) -> Optional[float]:
         lux = self.outdoor_lux() * self.transmittance() + self.ambient_lux

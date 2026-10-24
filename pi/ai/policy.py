@@ -22,6 +22,12 @@ class AIPolicy:
         self.lut = lut
         self.meta = self.m.get("meta", {})
         self.hist: deque = deque(maxlen=HISTORY)
+        # 모델을 학습할 때의 투과율표와 지금 투과율표가 다르면 다시 학습해야 한다 (python -m pi.ai.retrain)
+        trained_lut = self.meta.get("lut")
+        self.stale = trained_lut is not None and any(
+            abs(a - b) > 1e-3 for a, b in zip(trained_lut, lut))
+        if self.stale:
+            print("[ai] 경고: 모델이 지금과 다른 투과율표로 학습됨 → python -m pi.ai.retrain 필요")
 
     def reset(self) -> None:
         self.hist.clear()

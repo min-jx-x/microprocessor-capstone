@@ -5,6 +5,7 @@
   python -m pi.app --speed 720     하루를 2분에 재생
   python -m pi.app --speed 720 --start 06:30   가상 시계를 06:30부터 시작 (시연용)
   python -m pi.app --real          Pi 5: 실제 BH1750 + GPIO 릴레이
+  python -m pi.app --real --start 11:00 --speed 0   실물 시연: 시각을 11:00(주간)에 고정
 
 브라우저: http://localhost:5000  (Pi 핫스팟에서는 http://10.42.0.1:5000, 확인 필요)
 """
@@ -18,6 +19,15 @@ from pi.control.loop import Controller
 from pi.storage import LogStore
 
 
+def start_time(start: str = None) -> datetime:
+    """가상 시계 시작 시각. 없으면 지금, "06:30"이면 오늘 06:30."""
+    t0 = datetime.now()
+    if start:
+        h, m = (int(x) for x in start.split(":"))
+        t0 = t0.replace(hour=h, minute=m, second=0, microsecond=0)
+    return t0
+
+
 def build_devices(real: bool, speed: float, start: str = None):
     """센서·릴레이·시계·바깥 빛을 만든다. 이 함수만 바꾸면 노트북 ↔ Pi 전환."""
     from pi.sim.clock import VirtualClock
@@ -25,15 +35,12 @@ def build_devices(real: bool, speed: float, start: str = None):
         # 대현이 만드는 실제 드라이버. 파일이 아직 없으면 여기서 ImportError.
         from pi.devices.bh1750 import BH1750Sensor
         from pi.devices.relays import GpioRelays
-        clock = VirtualClock(datetime.now(), 1.0)   # 실제 장치는 항상 실제 시간
-        return BH1750Sensor(), GpioRelays(), clock, None
+        # 실물은 바깥 빛이 진짜(LED 스탠드)라 시간만 다룬다. 시연 때는 시각을 고정(speed 0)해
+        # 언제 시연해도 '주간' 판단이 나오게 할 수 있다.
+        return BH1750Sensor(), GpioRelays(), VirtualClock(start_time(start), speed), None
     from pi.devices.sim import SimRelays, SimSensor
     from pi.sim.outdoor import OutdoorLight
-    t0 = datetime.now()
-    if start:                                       # 시연: 원하는 시각부터 재생
-        h, m = (int(x) for x in start.split(":"))
-        t0 = t0.replace(hour=h, minute=m, second=0, microsecond=0)
-    clock = VirtualClock(t0, speed)
+    clock = VirtualClock(start_time(start), speed)
     outdoor = OutdoorLight(clock.hour)
     relays = SimRelays()
     sensor = SimSensor(relays, outdoor)
@@ -121,8 +128,8 @@ def main() -> None:
     ap.add_argument("--real", action="store_true", help="실제 센서·릴레이 사용 (Pi 5)")
     ap.add_argument("--host", default=config.WEB_HOST)
     ap.add_argument("--port", type=int, default=config.WEB_PORT)
-    ap.add_argument("--speed", type=float, default=1.0, help="가상 시계 배속 (시뮬레이션)")
-    ap.add_argument("--start", default=None, help="가상 시계 시작 시각 HH:MM (시뮬레이션)")
+    ap.add_argument("--speed", type=float, default=1.0, help="가상 시계 배속. 0이면 시각 고정")
+    ap.add_argument("--start", default=None, help="가상 시계 시작 시각 HH:MM")
     args = ap.parse_args()
 
     sensor, relays, clock, outdoor = build_devices(args.real, args.speed, args.start)

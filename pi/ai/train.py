@@ -17,6 +17,7 @@ from datetime import datetime
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier
 
+from pi import config
 from pi.ai.features import FEATURE_NAMES, HORIZON
 from pi.control.decide import choose_level, load_lut
 
@@ -66,7 +67,9 @@ def main() -> None:
     meta = {"trained": datetime.now().strftime("%Y-%m-%d %H:%M"), "horizon": HORIZON,
             "depth": args.depth, "leaves": int(clf.get_n_leaves()),
             "train_rows": int((~test).sum()), "test_rows": int(test.sum()),
-            "test_acc": round(acc, 4), "rule_acc": round(rule_acc, 4)}
+            "test_acc": round(acc, 4), "rule_acc": round(rule_acc, 4),
+            "lut_source": config.LUT_SOURCE, "lut": [round(x, 4) for x in lut],
+            "levels": [list(x) for x in config.LEVELS]}
     export_tree(clf, args.out, meta)
 
     print(f"학습 {meta['train_rows']}행 / 시험 {meta['test_rows']}행, 깊이 {args.depth}, 잎 {meta['leaves']}개")
