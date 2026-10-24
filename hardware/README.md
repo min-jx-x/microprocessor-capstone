@@ -1,3 +1,6 @@
 # hardware
 
-회로도, 배선도, 부품 리스트(BOM)를 관리합니다. 부품 리스트는 4주차 제안서 통과 후 발주에 바로 쓸 수 있게 표 형식으로 정리해두면 좋습니다.
+- [bom.md](bom.md): 부품 목록 (최종 6단계 구성)
+- [wiring_pi5.md](wiring_pi5.md): Raspberry Pi 5와 센서·릴레이 배선, 시험 순서
+- [safety_checklist.md](safety_checklist.md): 교류 연결 전 안전 점검표
+- `tests/`: 초기 Arduino Uno용 시험 스케치 (참고용)
