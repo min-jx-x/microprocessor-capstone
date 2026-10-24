@@ -51,6 +51,36 @@ def save_log(rows, path):
             w.writerow([r["i"] * 1000, int(r["hour"]), r["lux"], r["level"]])
 
 
+METRIC_ROWS = (("acc", "정확도(±20%)", "{:.1%}"), ("mape", "MAPE", "{:.1%}"),
+               ("glare", "눈부심 회차/일", "{:.1f}"), ("switches", "전환 횟수/일", "{:.1f}"),
+               ("delay", "반응 지연(초)", "{:.2f}"))
+
+
+def compare(days: int = 40, seed: int = 777, speed: float = 720,
+            model: str = "pi/data/ai_tree.json", logdir: str = None) -> dict:
+    """같은 날들을 규칙과 AI로 돌려 지표 평균을 돌려준다. {"rule": {...}, "ai": {...}}"""
+    lut = load_lut()
+    profiles = load_profiles()
+    rule, ai = RulePolicy(lut), AIPolicy(lut, model)
+    rng = random.Random(seed)
+    res = {"rule": [], "ai": []}
+    for d in range(days):
+        kw = dict(profile=pick(profiles, d) if profiles and d % 3 else None,
+                  dt_s=speed, seed=seed * 1000 + d,
+                  wake_hour=rng.uniform(6.5, 8.5), bursts=rng.randint(4, 10))
+        for name, pol in (("rule", rule), ("ai", ai)):
+            rows, bursts = run_day(pol, **kw)
+            res[name].append(metrics(rows, bursts))
+            if d == 0 and logdir:
+                save_log(rows, os.path.join(logdir, f"eval_{name}.csv"))
+
+    def avg(name, k):
+        v = [m[k] for m in res[name] if m[k] == m[k]]   # NaN 제외
+        return statistics.mean(v) if v else float("nan")
+
+    return {name: {k: avg(name, k) for k, _, _ in METRIC_ROWS} for name in res}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=30)
@@ -60,31 +90,11 @@ def main() -> None:
     ap.add_argument("--logdir", default="pi/data")
     args = ap.parse_args()
 
-    lut = load_lut()
-    profiles = load_profiles()
-    rule, ai = RulePolicy(lut), AIPolicy(lut, args.model)
-    rng = random.Random(args.seed)
-    res = {"rule": [], "ai": []}
-    for d in range(args.days):
-        kw = dict(profile=pick(profiles, d) if profiles and d % 3 else None,
-                  dt_s=args.speed, seed=args.seed * 1000 + d,
-                  wake_hour=rng.uniform(6.5, 8.5), bursts=rng.randint(4, 10))
-        for name, pol in (("rule", rule), ("ai", ai)):
-            rows, bursts = run_day(pol, **kw)
-            res[name].append(metrics(rows, bursts))
-            if d == 0:
-                save_log(rows, os.path.join(args.logdir, f"eval_{name}.csv"))
-
-    def avg(name, k):
-        v = [m[k] for m in res[name] if m[k] == m[k]]   # NaN 제외
-        return statistics.mean(v) if v else float("nan")
-
+    r = compare(args.days, args.seed, args.speed, args.model, args.logdir)
     print(f"{args.days}일 비교 (배속 {args.speed:g}, 직사광 하루 4~10번)")
     print(f"{'지표':<14}{'규칙':>10}{'AI':>10}")
-    for k, label, fmt in (("acc", "정확도(±20%)", "{:.1%}"), ("mape", "MAPE", "{:.1%}"),
-                          ("glare", "눈부심 회차/일", "{:.1f}"), ("switches", "전환 횟수/일", "{:.1f}"),
-                          ("delay", "반응 지연(초)", "{:.2f}")):
-        print(f"{label:<14}{fmt.format(avg('rule', k)):>10}{fmt.format(avg('ai', k)):>10}")
+    for k, label, fmt in METRIC_ROWS:
+        print(f"{label:<14}{fmt.format(r['rule'][k]):>10}{fmt.format(r['ai'][k]):>10}")
     print(f"첫째 날 로그: {args.logdir}/eval_rule.csv, eval_ai.csv (tools/metrics.py 형식)")
 
 

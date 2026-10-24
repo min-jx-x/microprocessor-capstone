@@ -55,3 +55,19 @@ def test_stabilizer_needs_three_in_a_row():
     # 전환 직후 5초 안에는 바뀌지 않음
     for t in (103, 104, 105):
         assert st.propose(1, 4, now=t) is None
+
+
+def test_stabilizer_counts_direction_not_value():
+    """AI 후보가 2 → 1 → 2처럼 값은 흔들려도 '어둡게' 방향이 3번 이어지면 전환 (최근 후보로)."""
+    st = Stabilizer(stable_count=3, min_interval_s=5)
+    assert st.propose(2, 3, now=10) is None
+    assert st.propose(1, 3, now=11) is None
+    assert st.propose(2, 3, now=12) == 2
+
+
+def test_stabilizer_resets_on_direction_change():
+    st = Stabilizer(stable_count=3, min_interval_s=5)
+    st.propose(1, 3, now=10)
+    st.propose(1, 3, now=11)
+    assert st.propose(4, 3, now=12) is None     # 방향이 바뀌면 처음부터
+    assert st.propose(3, 3, now=13) is None     # 현재와 같으면(유지) 초기화
