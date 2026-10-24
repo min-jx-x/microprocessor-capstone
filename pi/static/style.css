@@ -60,6 +60,8 @@ svg { width: 100%; display: block; }
 .l-target { border-color: var(--target) !important; border-top-style: dashed !important; }
 .l-out { border-color: var(--out) !important; border-top-width: 1px !important; }
 a { color: var(--accent); }
+.alert { background: #fdecea; color: #8a1c12; border: 1px solid #f3b8b0; border-radius: 10px;
+  padding: 10px 14px; font-size: 14px; }
 @media (max-width: 560px) {
   .cards { grid-template-columns: repeat(2, 1fr); }
   .v b { font-size: 20px; }

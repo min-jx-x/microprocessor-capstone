@@ -80,9 +80,33 @@ LUT_T_DEFAULT = [0.14, 0.21, 0.32, 0.38, 0.56, 1.00]
 DEADBAND_T = 0.05              # 현재 단계를 유지하는 허용 오차. 클수록 덜 바뀐다
 
 # ---------------------------------------------------------------------------
+# 실측값 반영 (pi/data/lut.json, 형식은 pi/calib.py 참고)
+# ---------------------------------------------------------------------------
+# 파일이 있으면 단계 순서(LEVELS)를 실측 밝기 순으로 바꾸고, 상대 투과율(LUT_T)도 실측값을 쓴다.
+# 파일이 없으면 위 기본값 그대로. 어느 쪽인지는 LUT_SOURCE로 확인 ("measured" / "default").
+from pi import calib as _calib  # noqa: E402
+
+CALIBRATION = _calib.load()
+if CALIBRATION is not None and len(CALIBRATION.ratio) == NUM_LEVELS:
+    if CALIBRATION.lux:                       # 조합 정보가 있을 때만 순서를 바꾼다
+        LEVELS = [tuple(x) for x in CALIBRATION.levels]
+    LUT_T = list(CALIBRATION.ratio)
+    LUT_SOURCE = "measured"
+else:
+    CALIBRATION = None
+    LUT_T = list(LUT_T_DEFAULT)
+    LUT_SOURCE = "default"
+
+# ---------------------------------------------------------------------------
 # 웹 / 로그
 # ---------------------------------------------------------------------------
 WEB_HOST = "0.0.0.0"           # 같은 Wi-Fi(핫스팟)의 휴대폰에서 접속 가능하게
 WEB_PORT = 5000
 HISTORY_POINTS = 300           # 화면 그래프에 보여줄 최근 기록 개수
 DB_PATH = os.environ.get("LIGHTQ_DB", "pi/data/lightq.db")   # 환경변수로 바꿀 수 있음
+
+# ---------------------------------------------------------------------------
+# 안전
+# ---------------------------------------------------------------------------
+SENSOR_FAIL_LIMIT = 10         # 센서가 연속 이 횟수만큼 실패하면 0단계(모든 릴레이 꺼짐)로 두고 경고
+SAFE_LEVEL = 0                 # 0단계 = 필름 전원이 모두 꺼진 상태라 전기적으로 가장 안전

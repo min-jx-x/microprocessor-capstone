@@ -40,7 +40,7 @@ class Controller:
             from pi.ai.policy import AIPolicy
             ai = AIPolicy(self.lut)
             self.policies["ai"] = ai
-            self.ai_meta = ai.meta
+            self.ai_meta = dict(ai.meta, stale=ai.stale)
         self.brain = "ai" if "ai" in self.policies else "rule"
 
         self.lock = threading.Lock()    # 웹 요청 스레드와 제어 스레드가 상태를 같이 만지므로
@@ -50,6 +50,7 @@ class Controller:
         self.lux: Optional[float] = None
         self.info = {}
         self.switches = 0               # 단계 전환 횟수 (오탐률 확인용)
+        self.sensor_fail = 0            # 센서 연속 실패 횟수
         self.history = deque(maxlen=config.HISTORY_POINTS)
 
         self.driver.apply(0)            # 시작은 항상 0단계(모두 꺼짐)
@@ -58,9 +59,16 @@ class Controller:
 
     # ------------------------------------------------------------------ 루프
     def step(self) -> None:
-        lux = self.sensor.read_lux()
-        if lux is None:                 # 센서 오류: 이번 회차는 건너뛰고 현재 단계 유지
+        try:
+            lux = self.sensor.read_lux()
+        except Exception as e:          # I2C 선 빠짐 등. 루프는 멈추지 않는다
+            print("[loop] 센서 오류:", e)
+            lux = None
+        if lux is None:
+            self._on_sensor_fail()
             return
+        with self.lock:
+            self.sensor_fail = 0
         hour = self.clock.hour()
         vtime = self.clock.now().strftime("%H:%M:%S")
         event = ""
@@ -91,6 +99,22 @@ class Controller:
             level = self.level
         if self.store is not None:
             self.store.add(vtime, hour, lux, info["target"], level, mode, event)
+
+    def _on_sensor_fail(self) -> None:
+        """한두 번은 현재 단계를 유지하고, 연속 SENSOR_FAIL_LIMIT번이면 0단계(전원 모두 끔)로 둔다."""
+        with self.lock:
+            self.sensor_fail += 1
+            if self.sensor_fail < config.SENSOR_FAIL_LIMIT or self.level == config.SAFE_LEVEL:
+                return
+            prev = self.level
+            self.driver.apply(config.SAFE_LEVEL)
+            self.level = config.SAFE_LEVEL
+            self.switches += 1
+            self.stab.reset()
+        print(f"[loop] 센서 {config.SENSOR_FAIL_LIMIT}회 연속 실패 → {config.SAFE_LEVEL}단계로 전환")
+        if self.store is not None:
+            self.store.add(self.clock.now().strftime("%H:%M:%S"), self.clock.hour(), -1, None,
+                           config.SAFE_LEVEL, self.mode, f"sensor_fail {prev}->{config.SAFE_LEVEL}")
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -160,6 +184,9 @@ class Controller:
                 "brain": self.brain,
                 "brains": list(self.policies),
                 "ai_meta": self.ai_meta,
+                "lut_source": config.LUT_SOURCE,
+                "sensor_fail": self.sensor_fail,
+                "sensor_fail_limit": config.SENSOR_FAIL_LIMIT,
                 "level": self.level,
                 "films": {"A": a, "B": b},
                 "lux": self.lux,

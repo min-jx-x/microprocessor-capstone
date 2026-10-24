@@ -10,8 +10,6 @@ Uno 시절 firmware/sketches/capstone_main/decision.h 의 규칙을 Python으로
 여기에 시간대 규칙(취침·저녁은 0단계 고정, 기상 전 램프)을 더했다.
 나중에 AI 모델은 같은 입력을 받아 단계를 돌려주는 함수로 이 자리를 바꾼다.
 """
-import json
-import os
 from typing import Dict, List, Optional, Tuple
 
 from pi import config
@@ -20,17 +18,9 @@ PERIOD_NAMES = {"sleep": "취침", "ramp": "기상 준비", "morning": "아침",
                 "day": "주간", "evening": "저녁"}
 
 
-def load_lut(path: str = "pi/data/lut.json") -> List[float]:
-    """실측 LUT가 있으면 그 상대 투과율을, 없으면 기본값을 돌려준다."""
-    if os.path.exists(path):
-        try:
-            with open(path, encoding="utf-8") as f:
-                ratio = json.load(f)["ratio"]
-            if len(ratio) == config.NUM_LEVELS and all(r > 0 for r in ratio):
-                return [float(r) for r in ratio]
-        except (OSError, ValueError, KeyError):
-            pass
-    return list(config.LUT_T_DEFAULT)
+def load_lut() -> List[float]:
+    """단계별 상대 투과율. lut.json 실측값이 있으면 그 값, 없으면 기본값 (config.py에서 결정)."""
+    return list(config.LUT_T)
 
 
 def parse_hhmm(text: str) -> float:
