@@ -21,6 +21,7 @@ class OutdoorLight:
         self.rng = random.Random(seed)
         self.cloud = 1.0      # 1.0 = 맑음, 0.4 = 많이 흐림
         self.burst = 0.0      # 갑작스러운 직사광 추가분(lux)
+        self.last = 0.0       # 마지막으로 계산한 값. 화면 표시용 (다시 계산하면 구름이 또 움직이므로)
 
     def trigger_burst(self, extra_lux: float = 1500.0) -> None:
         """선제 차광 시연용: 바깥 빛을 갑자기 올린다. 이후 서서히 줄어든다."""
@@ -37,4 +38,5 @@ class OutdoorLight:
         self.cloud = min(1.0, max(0.4, self.cloud + self.rng.uniform(-0.02, 0.02)))
         value = base * self.cloud + self.night_lux + self.burst
         self.burst *= 0.9     # 직사광은 조금씩 사라진다
+        self.last = value
         return value
