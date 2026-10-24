@@ -67,4 +67,9 @@ a { color: var(--accent); }
   .v b { font-size: 20px; }
   .lv { height: 48px; }
 }
+.pref-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.pref-grid b { font-size: 20px; font-variant-numeric: tabular-nums; }
+select, #new-profile { font: inherit; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); color: var(--text); }
+.small-btn { font-size: 13px; padding: 6px 10px; margin-top: 8px; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }

@@ -5,6 +5,7 @@
 장치(센서·릴레이)는 바깥에서 넣어 주므로, 같은 코드가 노트북(가짜 장치)과 Pi(실제 장치)에서 돈다.
 """
 import os
+import statistics
 import threading
 import time
 from collections import deque
@@ -12,6 +13,7 @@ from typing import Optional
 
 from pi import config
 from pi.control.decide import RulePolicy, load_lut, parse_hhmm
+from pi.control.preference import PreferenceStore
 
 # 대현이 만든 정식 모듈이 있으면 그것을, 없으면 임시 버전을 쓴다.
 try:
@@ -25,7 +27,7 @@ except ImportError:
 
 
 class Controller:
-    def __init__(self, sensor, relays, clock, outdoor=None, store=None) -> None:
+    def __init__(self, sensor, relays, clock, outdoor=None, store=None, pref=None) -> None:
         self.sensor = sensor
         self.clock = clock
         self.outdoor = outdoor          # 시뮬레이션일 때만 있음 (화면에 바깥 빛 표시용)
@@ -51,6 +53,10 @@ class Controller:
         self.info = {}
         self.switches = 0               # 단계 전환 횟수 (오탐률 확인용)
         self.sensor_fail = 0            # 센서 연속 실패 횟수
+        # 개인 선호 보정. 넘겨주지 않으면 파일에 저장하지 않는 임시 저장소(테스트·시뮬레이션)
+        self.pref = pref if pref is not None else PreferenceStore(path=None)
+        self._pref_pending = None       # 수동 조작 후 선호 조도를 재는 중이면 {"level", "samples"}
+        self.last_learn = None          # 화면 표시용: 마지막으로 배운 내용
         self.history = deque(maxlen=config.HISTORY_POINTS)
 
         self.driver.apply(0)            # 시작은 항상 0단계(모두 꺼짐)
@@ -76,7 +82,8 @@ class Controller:
             wake = parse_hhmm(self.wake_time)
             # 모든 판단 방식에 매번 값을 넣어 준다 (AI는 최근 4회 기록이 필요하므로,
             # 도중에 바꿔도 바로 동작하게). 실제 적용은 선택된 방식의 답만 쓴다.
-            answers = {k: p.decide(lux, hour, self.level, wake) for k, p in self.policies.items()}
+            scale = self.pref.scale()
+            answers = {k: p.decide(lux, hour, self.level, wake, scale) for k, p in self.policies.items()}
             cand, info = answers[self.brain]
             if self.mode == "auto":
                 now = time.monotonic()
@@ -87,6 +94,9 @@ class Controller:
                     event = f"{self.brain} {self.level}->{nxt}"
                     self.level = nxt
                     self.switches += 1
+            learned = self._collect_preference(lux, info)
+            if learned:
+                event = learned
             self.lux = lux
             self.info = dict(info, candidate=cand,
                              answers={k: v[0] for k, v in answers.items()})
@@ -99,6 +109,23 @@ class Controller:
             level = self.level
         if self.store is not None:
             self.store.add(vtime, hour, lux, info["target"], level, mode, event)
+
+    def _collect_preference(self, lux: float, info: dict):
+        """수동 조작 뒤 PREF_SETTLE회 측정한 조도의 중앙값을 선호 조도로 보고 학습한다 (lock 안에서 호출)."""
+        p = self._pref_pending
+        if p is None or self.mode != "manual" or self.level != p["level"]:
+            return None
+        p["samples"].append(lux)
+        if len(p["samples"]) < config.PREF_SETTLE:
+            return None
+        self._pref_pending = None
+        preferred = statistics.median(p["samples"])
+        new = self.pref.learn(info["period"], info.get("base_target"), preferred)
+        if new is None:                 # 저녁·취침 등 보정 대상이 아닌 시간대
+            return None
+        self.last_learn = {"period_name": info["period_name"], "preferred": round(preferred),
+                           "offset": new, "vtime": self.clock.now().strftime("%H:%M")}
+        return f"pref {info['period']} {new:+.3f} ({preferred:.0f}lux)"
 
     def _on_sensor_fail(self) -> None:
         """한두 번은 현재 단계를 유지하고, 연속 SENSOR_FAIL_LIMIT번이면 0단계(전원 모두 끔)로 둔다."""
@@ -149,6 +176,7 @@ class Controller:
             if prev != level:
                 self.switches += 1
             self.stab.reset()
+            self._pref_pending = {"level": level, "samples": []}   # 다음 측정부터 선호 조도 수집
             lux, hour = self.lux, self.clock.hour()
             target = self.info.get("target")
         if self.store is not None and lux is not None:
@@ -161,6 +189,8 @@ class Controller:
         with self.lock:
             self.mode = mode
             self.stab.reset()           # 자동으로 돌아올 때 이전 연속 횟수는 버린다
+            if mode == "auto":
+                self._pref_pending = None   # 측정이 끝나기 전에 자동으로 돌아가면 학습하지 않음
 
     def set_brain(self, name: str) -> None:
         if name not in self.policies:
@@ -169,10 +199,31 @@ class Controller:
             self.brain = name
             self.stab.reset()
 
+    def set_profile(self, name: str) -> None:
+        self.pref.select(name)          # 없는 이름이면 새 사용자
+        with self.lock:
+            self._pref_pending = None
+            self.last_learn = None
+            self.stab.reset()
+
+    def reset_preference(self) -> None:
+        self.pref.reset()
+        with self.lock:
+            self.last_learn = None
+
     def set_wake_time(self, text: str) -> None:
         parse_hhmm(text)                # 형식이 틀리면 여기서 예외
         with self.lock:
             self.wake_time = text
+
+    def _pref_view(self) -> dict:
+        """화면 표시용: 사용자, 시간대별 [기본 목표, 내 목표], 학습 횟수, 마지막 학습 (lock 안에서 호출)."""
+        v = self.pref.snapshot()
+        base = {"morning": config.TARGET_WAKE_LUX, "day": config.TARGET_DAY_LUX}
+        v["targets"] = {g: [b, round(b * (1 + v["offset"][g]))] for g, b in base.items()}
+        v["last"] = self.last_learn
+        v["measuring"] = self._pref_pending is not None
+        return v
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -185,6 +236,7 @@ class Controller:
                 "brains": list(self.policies),
                 "ai_meta": self.ai_meta,
                 "lut_source": config.LUT_SOURCE,
+                "pref": self._pref_view(),
                 "sensor_fail": self.sensor_fail,
                 "sensor_fail_limit": config.SENSOR_FAIL_LIMIT,
                 "level": self.level,
