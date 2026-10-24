@@ -65,3 +65,4 @@ a { color: var(--accent); }
   .v b { font-size: 20px; }
   .lv { height: 48px; }
 }
+button:disabled { opacity: 0.4; cursor: not-allowed; }

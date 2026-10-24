@@ -57,6 +57,21 @@ def schedule(hour: float, wake_hour: float) -> Tuple[str, Optional[float]]:
     return "sleep", None
 
 
+def choose_level(t_need: float, cur: int, lut: List[float]) -> int:
+    """필요한 투과율에 가장 가까운 단계. 현재 단계도 충분히 가까우면(데드밴드) 그대로 둔다.
+    규칙 판단과 AI 학습 정답(라벨) 만들기가 같은 함수를 쓴다."""
+    errors = [abs(t - t_need) for t in lut]
+    best = min(range(len(lut)), key=lambda i: errors[i])
+    if errors[cur] <= errors[best] + config.DEADBAND_T:
+        return cur
+    return best
+
+
+def incident_of(lux: float, cur: int, lut: List[float]) -> float:
+    """측정 조도와 현재 단계로 필름에 들어오는 빛(5단계 기준)을 거꾸로 추정한다."""
+    return max(lux / lut[cur], 1.0)     # 어두울 때 0으로 나누기 방지
+
+
 def decide_rule(lux: float, hour: float, cur: int, lut: List[float],
                 wake_hour: float) -> Tuple[int, Dict]:
     """다음 단계와 판단 근거(info)를 돌려준다. info는 화면 표시와 로그에 쓴다."""
@@ -66,11 +81,21 @@ def decide_rule(lux: float, hour: float, cur: int, lut: List[float],
         return 0, info
 
     cur = max(0, min(cur, len(lut) - 1))
-    incident = max(lux / lut[cur], 1.0)     # 어두울 때 0으로 나누기 방지
+    incident = incident_of(lux, cur, lut)
     t_need = target / incident
-    errors = [abs(t - t_need) for t in lut]
-    best = min(range(len(lut)), key=lambda i: errors[i])
     info.update({"incident": round(incident, 1), "t_need": round(t_need, 3)})
-    if errors[cur] <= errors[best] + config.DEADBAND_T:
-        return cur, info
-    return best, info
+    return choose_level(t_need, cur, lut), info
+
+
+class RulePolicy:
+    """규칙 판단을 AI와 같은 모양(decide 메서드)으로 감싼 것. 제어 루프는 이 모양만 안다."""
+    name = "rule"
+
+    def __init__(self, lut: List[float]) -> None:
+        self.lut = lut
+
+    def decide(self, lux: float, hour: float, cur: int, wake_hour: float) -> Tuple[int, Dict]:
+        return decide_rule(lux, hour, cur, self.lut, wake_hour)
+
+    def reset(self) -> None:
+        pass

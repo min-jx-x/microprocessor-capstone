@@ -3,6 +3,7 @@
 실행 (저장소 최상위 폴더에서):
   python -m pi.app                 노트북: 가짜 센서·릴레이 + 가상 시계
   python -m pi.app --speed 720     하루를 2분에 재생
+  python -m pi.app --speed 720 --start 06:30   가상 시계를 06:30부터 시작 (시연용)
   python -m pi.app --real          Pi 5: 실제 BH1750 + GPIO 릴레이
 
 브라우저: http://localhost:5000  (Pi 핫스팟에서는 http://10.42.0.1:5000, 확인 필요)
@@ -17,7 +18,7 @@ from pi.control.loop import Controller
 from pi.storage import LogStore
 
 
-def build_devices(real: bool, speed: float):
+def build_devices(real: bool, speed: float, start: str = None):
     """센서·릴레이·시계·바깥 빛을 만든다. 이 함수만 바꾸면 노트북 ↔ Pi 전환."""
     from pi.sim.clock import VirtualClock
     if real:
@@ -28,7 +29,11 @@ def build_devices(real: bool, speed: float):
         return BH1750Sensor(), GpioRelays(), clock, None
     from pi.devices.sim import SimRelays, SimSensor
     from pi.sim.outdoor import OutdoorLight
-    clock = VirtualClock(datetime.now(), speed)
+    t0 = datetime.now()
+    if start:                                       # 시연: 원하는 시각부터 재생
+        h, m = (int(x) for x in start.split(":"))
+        t0 = t0.replace(hour=h, minute=m, second=0, microsecond=0)
+    clock = VirtualClock(t0, speed)
     outdoor = OutdoorLight(clock.hour)
     relays = SimRelays()
     sensor = SimSensor(relays, outdoor)
@@ -62,6 +67,14 @@ def create_app(ctrl: Controller, store: LogStore) -> Flask:
     def mode():
         try:
             ctrl.set_mode(str(body().get("mode")))
+        except ValueError as e:
+            return jsonify(error=str(e)), 400
+        return jsonify(ok=True)
+
+    @app.post("/api/brain")
+    def brain():
+        try:
+            ctrl.set_brain(str(body().get("brain")))
         except ValueError as e:
             return jsonify(error=str(e)), 400
         return jsonify(ok=True)
@@ -109,9 +122,10 @@ def main() -> None:
     ap.add_argument("--host", default=config.WEB_HOST)
     ap.add_argument("--port", type=int, default=config.WEB_PORT)
     ap.add_argument("--speed", type=float, default=1.0, help="가상 시계 배속 (시뮬레이션)")
+    ap.add_argument("--start", default=None, help="가상 시계 시작 시각 HH:MM (시뮬레이션)")
     args = ap.parse_args()
 
-    sensor, relays, clock, outdoor = build_devices(args.real, args.speed)
+    sensor, relays, clock, outdoor = build_devices(args.real, args.speed, args.start)
     store = LogStore(config.DB_PATH)
     ctrl = Controller(sensor, relays, clock, outdoor, store)
     ctrl.start()

@@ -109,6 +109,16 @@ function render(st) {
   document.querySelectorAll(".lv").forEach((b) =>
     b.classList.toggle("on", Number(b.dataset.level) === st.level));
   if (!wakeEdited) $("wake").value = st.wake_time;
+  document.querySelectorAll("[data-brain]").forEach((b) => {
+    b.classList.toggle("on", b.dataset.brain === st.brain);
+    b.disabled = !st.brains.includes(b.dataset.brain);
+  });
+  const ans = (st.info && st.info.answers) || {};
+  const rate = st.info && st.info.rate != null ? ` · 빛 변화율 ${(st.info.rate * 100).toFixed(0)}%` : "";
+  const meta = st.ai_meta ? `AI = 결정트리(깊이 ${st.ai_meta.depth}, 시험 정확도 ${(st.ai_meta.test_acc * 100).toFixed(0)}%)` : "AI 모델 파일 없음";
+  $("brain-text").textContent = st.info && st.info.target != null
+    ? `지금 판단 — 규칙 ${ans.rule ?? "-"}단계, AI ${ans.ai ?? "-"}단계${rate}. ${meta}`
+    : `목표가 없는 시간대라 두 방식 모두 0단계. ${meta}`;
   $("sim-panel").hidden = !st.sim;
   if (st.sim) {
     const last = st.history[st.history.length - 1];
@@ -132,6 +142,8 @@ async function refresh() {
 // ---------- 버튼 ----------
 document.querySelectorAll(".lv").forEach((b) =>
   b.addEventListener("click", () => post("/api/level", { level: Number(b.dataset.level) })));
+document.querySelectorAll("[data-brain]").forEach((b) =>
+  b.addEventListener("click", () => post("/api/brain", { brain: b.dataset.brain })));
 document.querySelectorAll("[data-mode]").forEach((b) =>
   b.addEventListener("click", () => post("/api/mode", { mode: b.dataset.mode })));
 document.querySelectorAll("#speeds button").forEach((b) =>
