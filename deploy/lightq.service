@@ -1,0 +1,23 @@
+# LightQ 웹 서버 자동 실행 (systemd)
+# 설치는 deploy/install_service.sh 가 한다. __USER__, __REPO__ 는 설치할 때 실제 값으로 바뀐다.
+[Unit]
+Description=LightQ PDLC dimming window
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__REPO__
+# 실행 옵션은 /etc/default/lightq 의 LIGHTQ_ARGS 로 바꾼다 (예: 시연 때 시각 고정)
+Environment=LIGHTQ_ARGS=--real
+EnvironmentFile=-/etc/default/lightq
+ExecStart=__REPO__/.venv/bin/python -m pi.app $LIGHTQ_ARGS
+Restart=on-failure
+RestartSec=3
+# 종료 신호를 받으면 app.py가 모든 릴레이를 끄고 끝난다
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

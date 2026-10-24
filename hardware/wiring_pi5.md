@@ -35,7 +35,7 @@ GPIO 번호는 BCM 기준이고, 괄호 안은 40핀 헤더의 물리 핀 번호
 
 ## 시험 순서
 
-1. 센서만 연결 → `i2cdetect -y 1`
-2. 릴레이만 연결 (교류 연결 없음) → 웹 수동 모드로 0~5단계를 눌러 릴레이 LED가 단계표대로 켜지는지
+1. 센서만 연결 → `i2cdetect -y 1` → `python -m pi.tools.check_sensor`
+2. 릴레이만 연결 (교류 연결 없음) → `python -m pi.tools.check_relays --each`, `--levels` → 웹 `--real` 수동 모드로 0~5단계
 3. 멀티미터로 T1·T2 출력 전압 측정 (필름 연결 전)
 4. [safety_checklist.md](safety_checklist.md) 확인 후 교류 연결, 3단계(필름 1장)부터

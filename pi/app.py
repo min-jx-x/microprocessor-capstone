@@ -10,6 +10,7 @@
 브라우저: http://localhost:5000  (Pi 핫스팟에서는 http://10.42.0.1:5000, 확인 필요)
 """
 import argparse
+import signal
 from datetime import datetime
 
 from flask import Flask, Response, jsonify, render_template, request
@@ -32,9 +33,13 @@ def build_devices(real: bool, speed: float, start: str = None):
     """센서·릴레이·시계·바깥 빛을 만든다. 이 함수만 바꾸면 노트북 ↔ Pi 전환."""
     from pi.sim.clock import VirtualClock
     if real:
-        # 대현이 만드는 실제 드라이버. 파일이 아직 없으면 여기서 ImportError.
-        from pi.devices.bh1750 import BH1750Sensor
-        from pi.devices.relays import GpioRelays
+        # 대현이 만드는 실제 드라이버
+        try:
+            from pi.devices.bh1750 import BH1750Sensor
+            from pi.devices.relays import GpioRelays
+        except ImportError as e:
+            raise SystemExit(f"--real 에 필요한 드라이버를 불러올 수 없음 "
+                             f"(pi/devices/bh1750.py, relays.py): {e}")
         # 실물은 바깥 빛이 진짜(LED 스탠드)라 시간만 다룬다. 시연 때는 시각을 고정(speed 0)해
         # 언제 시연해도 '주간' 판단이 나오게 할 수 있다.
         return BH1750Sensor(), GpioRelays(), VirtualClock(start_time(start), speed), None
@@ -131,6 +136,11 @@ def main() -> None:
     ap.add_argument("--speed", type=float, default=1.0, help="가상 시계 배속. 0이면 시각 고정")
     ap.add_argument("--start", default=None, help="가상 시계 시작 시각 HH:MM")
     args = ap.parse_args()
+
+    # systemd가 서버를 끌 때(SIGTERM)도 Ctrl+C와 똑같이 처리해서 아래 finally에서 릴레이를 모두 끈다
+    def _stop(signum, frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, _stop)
 
     sensor, relays, clock, outdoor = build_devices(args.real, args.speed, args.start)
     store = LogStore(config.DB_PATH)

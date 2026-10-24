@@ -182,11 +182,21 @@ python -m pi.app --real --start 11:00 --speed 0   # 실물 시연: 시각을 주
 브라우저에서 `http://localhost:5000` (Pi 핫스팟에서는 Pi 주소의 5000번 포트)
 
 ```bash
-python -m pytest pi/tests -q                  # 자동 테스트 23개
+python -m pytest pi/tests -q                  # 자동 테스트 23개 (+ 실제 드라이버 테스트 5개, 드라이버가 생기면 자동 실행)
 
 pip install -r pi/requirements-ai.txt         # AI 학습용 (노트북에서만)
 python -m pi.ai.retrain                       # 데이터 생성 → 학습 → 규칙 대 AI 비교
 python -m pi.ai.plot_compare                  # 비교 그래프 (docs/images)
+```
+
+### Raspberry Pi 5 설치
+
+Pi를 받은 날의 OS 설치부터 센서·릴레이 시험, 핫스팟, 부팅 시 자동 실행까지 순서는 [deploy/README.md](deploy/README.md)에 있습니다.
+
+```bash
+bash deploy/setup_pi.sh                            # 패키지·I2C·가상환경·테스트
+.venv/bin/python -m pi.tools.check_sensor          # 조도센서 확인
+.venv/bin/python -m pi.tools.check_relays --each   # 릴레이 확인 (교류 연결 없이)
 ```
 
 ### 실측값 반영
@@ -222,7 +232,9 @@ python -m pi.ai.retrain                                         # 실측 기준�
 │   ├── ai/             # 학습 데이터, 결정트리 학습·추론, 규칙 대 AI 평가
 │   ├── templates/, static/   # 대시보드 화면
 │   ├── data/           # 학습된 모델(ai_tree.json), 실측값(lut.json)
-│   └── tests/          # pytest
+│   ├── tests/          # pytest
+│   └── tools/          # 센서·릴레이 확인 도구
+├── deploy/             # Pi 설치 스크립트, 핫스팟, 자동 실행(systemd), 설치 안내서
 ├── tools/              # 기상청 일사량 → 조도 변환, 정량지표 계산
 ├── data/               # 기상청 ASOS 일사량 원본
 ├── hardware/           # 부품 목록, Pi 5 배선, 안전 점검표
