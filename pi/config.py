@@ -23,6 +23,10 @@ RELAY_ACTIVE_LOW = True
 # BH1750 조도센서 (I2C)
 BH1750_BUS = 1        # Pi의 I2C 버스 번호
 BH1750_ADDR = 0x23    # ADDR 핀이 GND면 0x23, VCC면 0x5C
+BH1750_MODE_CONTINUOUS_HIGH_RES = 0x10  # 연속 고해상도 모드 명령 (1 lx 분해능)
+BH1750_MAX_RETRY = 3                   # 읽기 실패 시 최대 재시도 횟수
+BH1750_CONVERSION_FACTOR = 1.2         # raw 데이터 -> lux 환산 계수 (raw / 1.2)
+BH1750_READ_BYTES = 2                  # 센서 측정 데이터 바이트 수
 
 # ---------------------------------------------------------------------------
 # 제어 주기와 깜빡임 방지
@@ -32,6 +36,7 @@ SAMPLE_PERIOD_S = 1.0          # 센서를 읽고 판단하는 주기(초)
 STABLE_COUNT = 3               # 같은 판단이 3회 연속이어야 전환
 MIN_SWITCH_INTERVAL_S = 5.0    # 마지막 전환 후 최소 간격(초)
 RELAY_SETTLE_S = 0.1           # 릴레이를 바꾼 뒤 다음 동작까지 기다리는 시간(초)
+STABILIZER_INITIAL_LAST_SWITCH = -1e9  # 시작 직후 즉시 전환 가능하도록 과거 시각으로 초기화
 
 # ---------------------------------------------------------------------------
 # 단계 정의
