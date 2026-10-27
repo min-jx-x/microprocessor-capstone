@@ -5,10 +5,8 @@
 //
 // 단계(level) 규칙: 0 = 가장 불투명, NUM_LEVELS-1 = 가장 투명
 
-// 4단계 — TEAM PDLC 디밍 컨트롤러 스펙 확정값 (7%/15%/30%/100% 프리셋 고정, 2026-09-30 회신).
-// 아날로그 다이얼이 아니라 프리셋 버튼 방식이라 소프트웨어로 더 세분화할 수 없음 (docs/actuator-control-notes.md 참고).
-// 실물 리모컨에서 다른 가능성이 확인되면 이 값과 LUT_T를 갱신할 것.
-#define NUM_LEVELS 4
+// 6단계 기준 (0 = 가장 불투명, NUM_LEVELS-1 = 가장 투명)
+#define NUM_LEVELS 6
 
 // 시간대별 목표 조도 (lux) - 임시값, 팀 합의 후 수정
 #define TARGET_SLEEP_LUX 5.0f
@@ -27,10 +25,10 @@
 #define DEADBAND_T 0.05f
 
 // ---- 룩업테이블 ----
-// 단계별 투과율 T (0~1). 현재 값은 TEAM PDLC가 회신한 프리셋 투과율(7%/15%/30%/100%) 그대로이며,
+// 단계별 투과율 T (0~1). 6단계 기준: 0단계(5%) ~ 5단계(100%)
 // 실측(calibration_sweep + tools/make_lut.py)이 끝나면 실측값으로 교체해야 한다.
-static const float LUT_T[NUM_LEVELS] = {0.07f, 0.15f, 0.30f, 1.00f};
-// 레거시: 0-10V PWM 방식(대안 A)을 쓸 경우의 듀티값. 이번 컨트롤러(버튼 프리셋)엔 쓰지 않음 — actuator.h 참고.
-static const int LUT_PWM[NUM_LEVELS] = {0, 85, 170, 255};
-// 레거시: 다단 변압기 탭 전환(대안 B)을 쓸 경우의 릴레이 채널 번호. 이번 컨트롤러(버튼 프리셋)엔 쓰지 않음.
-static const int LUT_TAP[NUM_LEVELS] = {0, 1, 2, 3};
+static const float LUT_T[NUM_LEVELS] = {0.05f, 0.15f, 0.30f, 0.50f, 0.75f, 1.00f};
+// 레거시: 0-10V PWM 방식(대안 A)을 쓸 경우의 듀티값.
+static const int LUT_PWM[NUM_LEVELS] = {0, 51, 102, 153, 204, 255};
+// 레거시: 다단 변압기 탭 전환(대안 B) 또는 릴레이 채널 번호.
+static const int LUT_TAP[NUM_LEVELS] = {0, 1, 2, 3, 4, 5};

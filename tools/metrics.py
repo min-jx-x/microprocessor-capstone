@@ -1,4 +1,5 @@
 """docs 사양에 맞춘 하드웨어/알고리즘 정량지표 계산 스크립트.
+pi/config.py 기준 (6단계 제어, 시간대별 목표 조도).
 
 정량지표 항목:
     1. 정확도 (Accuracy): 도달 조도가 해당 시간대(또는 단계) 목표 조도 ±tolerance% 범위 내에 들어온 비율
@@ -10,7 +11,7 @@
     ms, hour, lux, level
 
 사용법:
-    python tools/metrics.py                                  # data/sample_log.csv 분석
+    python tools/metrics.py                                  # data/sample_log.csv 분석 (pi/config.py 기준)
     python tools/metrics.py data/sample_log.csv              # 특정 파일 분석
     python tools/metrics.py data/sample_log.csv --incident   # 외부 일사 데이터 -> 투과율(T) 적용 실내 조도로 환산 평가
     python tools/metrics.py data/sample_log.csv --sensor     # BH1750 센서 실측값 직접 평가
@@ -23,55 +24,77 @@ import sys
 import numpy as np
 import pandas as pd
 
-# server/ai/params_loader 불러오기
-AI_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "server", "ai"))
-if AI_DIR not in sys.path:
-    sys.path.insert(0, AI_DIR)
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 try:
-    from params_loader import load_params, target_lux as get_target_lux
+    from pi import config
+    from pi.control.decide import parse_hhmm, schedule
 except ImportError:
-    load_params = None
-    get_target_lux = None
+    config = None
+    schedule = None
+    parse_hhmm = None
 
 
-def get_default_params():
-    """params.h 로드 실패 시 적용할 기본 규격 (4단계 기준)."""
+def get_default_config():
+    """pi/config.py 임포트 실패 시 사용할 기본 규격."""
     return {
-        "NUM_LEVELS": 4,
-        "TARGET_SLEEP_LUX": 5.0,
+        "NUM_LEVELS": 6,
+        "LUT_T": [0.06, 0.17, 0.36, 0.47, 0.70, 1.00],
+        "LUT_SOURCE": "default",
+        "DEFAULT_WAKE_TIME": "07:30",
+        "WAKE_END_HOUR": 9.0,
+        "SUNSET_HOUR": 18.0,
+        "SLEEP_START_HOUR": 22.0,
+        "TARGET_WAKE_START_LUX": 20.0,
         "TARGET_WAKE_LUX": 200.0,
         "TARGET_DAY_LUX": 500.0,
-        "SLEEP_START_HOUR": 22,
-        "SLEEP_END_HOUR": 6,
-        "WAKE_END_HOUR": 9,
-        "DEADBAND_T": 0.05,
-        "LUT_T": [0.07, 0.15, 0.30, 1.00],
+        "TARGET_SLEEP_LUX": 5.0,
     }
 
 
-def resolve_target_lux(df: pd.DataFrame, params: dict, target_lux_map: dict = None) -> pd.Series:
+def get_target_lux_for_hour(hour: float, wake_hour: float = None) -> float:
+    """pi/config.py 및 pi/control/decide.py 기반 시간대별 목표 조도 계산.
+    
+    - 기상 준비 (ramp): 20 lux -> 200 lux 점진 증가
+    - 아침 (morning): TARGET_WAKE_LUX (200 lux)
+    - 주간 (day): TARGET_DAY_LUX (500 lux)
+    - 저녁/취침 (evening/sleep): 0단계 차광 목표 (5 lux)
+    """
+    if config is not None and schedule is not None and parse_hhmm is not None:
+        if wake_hour is None:
+            wake_hour = parse_hhmm(config.DEFAULT_WAKE_TIME)
+        period, target = schedule(float(hour), wake_hour)
+        if target is not None:
+            return float(target)
+        return 5.0  # 저녁/취침 0단계 차광 목표 조도
+
+    # fallback
+    if 7.5 <= hour < 9.0:
+        return 200.0
+    if 9.0 <= hour < 18.0:
+        return 500.0
+    return 5.0
+
+
+def resolve_target_lux(df: pd.DataFrame, target_lux_map: dict = None) -> pd.Series:
     """각 행의 목표 조도(target_lux)를 결정한다.
     
     1. 사용자가 명시한 target_lux_map 이 있으면 우선 적용
-    2. CSV에 hour 컬럼이 있고 시간대 구분이 유효하면 params.h 기반 시간대별 목표 적용
-    3. 그 외의 경우 레거시 3단계 또는 4단계 기본 레벨 매핑 적용
+    2. CSV에 hour 컬럼이 있으면 pi/config.py 시간대별 목표 적용
+    3. 그 외의 경우 6단계 기본 레벨 매핑 적용
     """
     if target_lux_map is not None:
         return df["level"].map(target_lux_map)
 
     # hour 컬럼 기반 시간대별 목표 판별
-    if "hour" in df.columns and get_target_lux is not None and params is not None:
-        hours = df["hour"].dropna().astype(int)
-        # 시간대가 다양하게 분포되어 있으면 시간대별 목표 적용
-        return hours.apply(lambda h: float(get_target_lux(params, h)))
+    if "hour" in df.columns:
+        hours = df["hour"].dropna().astype(float)
+        return hours.apply(get_target_lux_for_hour)
 
-    # 레벨 기반 fallback (4단계: 0->5, 1->200, 2->500, 3->1000 / 3단계: 1->100, 2->250, 3->500)
-    num_levels = params.get("NUM_LEVELS", 4) if params else 4
-    if num_levels == 4 and df["level"].min() == 0:
-        fallback_map = {0: 5.0, 1: 200.0, 2: 500.0, 3: 1000.0}
-    else:
-        fallback_map = {1: 100.0, 2: 250.0, 3: 500.0}
+    # 레벨 기반 fallback (6단계 기준)
+    fallback_map = {0: 5.0, 1: 50.0, 2: 150.0, 3: 300.0, 4: 500.0, 5: 800.0}
     return df["level"].map(fallback_map)
 
 
@@ -84,10 +107,10 @@ def calculate_metrics(
     max_latency_window_ms: float = 15000.0,
     verbose: bool = True,
 ):
-    """로그 CSV 분석 및 정량지표 자동 계산.
+    """로그 CSV 분석 및 정량지표 자동 계산 (pi/config.py 6단계 기준).
 
     :param csv_path: 로그 CSV 경로
-    :param target_lux_map: level별 목표 조도 매핑 dict (None일 경우 params.h 시간대별 목표 적용)
+    :param target_lux_map: level별 목표 조도 매핑 dict (None일 경우 config 시간대별 목표 적용)
     :param tolerance: 허용 오차 비율 (0.10 -> ±10%)
     :param is_incident: 외부 입사광 데이터 여부 (True 시 LUT_T 투과율 곱해 실내 조도로 환산 평가)
     :param lux_step_threshold: 급변 감지 lux 변화량 임계값 (기본 100 lux)
@@ -98,28 +121,29 @@ def calculate_metrics(
         print(f"Error: 파일을 찾을 수 없습니다 -> {csv_path}")
         return None
 
-    # 파라미터 로드
-    params = None
-    if load_params is not None:
-        try:
-            params = load_params()
-        except Exception:
-            params = get_default_params()
-    else:
-        params = get_default_params()
-
     df = pd.read_csv(csv_path)
     if df.empty:
         print("Error: CSV 데이터가 비어 있습니다.")
         return None
 
+    # pi/config.py 기준 파라미터 로드
+    if config is not None:
+        num_levels = int(config.NUM_LEVELS)
+        lut_t = [round(float(x), 4) for x in config.LUT_T]
+        lut_source = f"{config.LUT_SOURCE} ({'pi/data/lut.json 실측' if config.LUT_SOURCE == 'measured' else '기본 가정값'})"
+        day_target = config.TARGET_DAY_LUX
+        wake_target = config.TARGET_WAKE_LUX
+    else:
+        d = get_default_config()
+        num_levels = d["NUM_LEVELS"]
+        lut_t = d["LUT_T"]
+        lut_source = d["LUT_SOURCE"]
+        day_target = d["TARGET_DAY_LUX"]
+        wake_target = d["TARGET_WAKE_LUX"]
+
     # 입사광(incident) 여부 자동 판별 (지정되지 않은 경우)
-    # 일반적인 실내 조도는 수백 lux 수준이지만, 기상청 일사량 환산값 등 야외 직사광은 수만 lux(최대 100,000 lux)에 달함
     if is_incident is None:
         is_incident = bool(df["lux"].max() > 10000.0)
-
-    lut_t = [float(x) for x in params.get("LUT_T", [0.07, 0.15, 0.30, 1.00])]
-    num_levels = params.get("NUM_LEVELS", len(lut_t))
 
     # 평가 조도(eval_lux) 계산
     if is_incident:
@@ -136,7 +160,7 @@ def calculate_metrics(
     # -------------------------------------------------------------
     # 1. 목표 조도 및 정확도 (Accuracy)
     # -------------------------------------------------------------
-    df["target_lux"] = resolve_target_lux(df, params, target_lux_map)
+    df["target_lux"] = resolve_target_lux(df, target_lux_map)
     df["lower_bound"] = df["target_lux"] * (1 - tolerance)
     df["upper_bound"] = df["target_lux"] * (1 + tolerance)
 
@@ -198,6 +222,11 @@ def calculate_metrics(
         print("                 하드웨어 성능 평가 결과              ")
         print("=" * 60)
         print(f"분석 파일 경로     : {csv_path}")
+        print(f"설정 기준          : pi/config.py (6단계)")
+        print(f"LUT 출처           : {lut_source}")
+        print(f"제어 단계 기준     : {num_levels}단계 (0 ~ {num_levels - 1})")
+        print(f"투과율 LUT (ratio) : {lut_t}")
+        print(f"목표 조도 기준     : 주간 {day_target:.0f} lux, 아침 {wake_target:.0f} lux, 차광 5 lux")
         print(f"평가 조도 모드     : {mode_str}")
         print(f"총 분석 데이터 건수: {len(df)} 건")
         print(f"허용 오차 범위     : ±{int(tolerance * 100)} %")
@@ -228,7 +257,7 @@ def calculate_metrics(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="로그 CSV 분석 및 정량지표 자동 계산")
+    parser = argparse.ArgumentParser(description="로그 CSV 분석 및 정량지표 자동 계산 (pi/config.py 기준)")
     parser.add_argument("csv_path", nargs="?", default="data/sample_log.csv", help="분석할 로그 CSV 파일 경로")
     parser.add_argument("--tolerance", type=float, default=0.10, help="목표 조도 허용 오차 (기본 0.10 -> ±10%%)")
     parser.add_argument("--incident", dest="is_incident", action="store_true", default=None, help="외부 입사광 모드로 평가 (투과율 T 적용)")

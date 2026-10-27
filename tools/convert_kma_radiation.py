@@ -79,7 +79,7 @@ def decide_level_from_incident(p: dict, incident_lux: float, hour: int, cur: int
 
 
 def main():
-    parser = argparse.ArgumentParser(description="기상청 일사량 데이터를 lux로 변환")
+    parser = argparse.ArgumentParser(description="기상청 일사량 데이터를 lux로 변환 (6단계 제어 연동)")
     parser.add_argument("--input", default=None, help="기상청 CSV 경로 (미지정 시 data/OBS_ASOS*.csv 자동 검색)")
     parser.add_argument("--station", default="177", help="관측 지점 번호 (177: 홍성, 129: 서산, 235: 보령 등)")
     parser.add_argument("--out", default="data/sample_log.csv", help="출력 로그 CSV 경로")
@@ -143,11 +143,11 @@ def main():
     conversion_factor = (1e6 / 3600.0) * args.efficacy
 
     output_rows = []
-    current_level = int(params["NUM_LEVELS"] - 1) if params else 3
+    current_level = int(params["NUM_LEVELS"] - 1) if params else 5
     ms = 0
 
     print("=" * 60)
-    print(f"기상청 일사량 -> 조도(lux) 변환")
+    print(f"기상청 일사량 -> 조도(lux) 변환 (6단계 기준)")
     print(f"입력 파일: {input_path}")
     print(f"선택 지점: {args.station} ({station_name})")
     print(f"발광 효율: {args.efficacy} lm/W (1 MJ/m² = {conversion_factor:.1f} lux)")

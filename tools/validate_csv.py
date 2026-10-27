@@ -1,7 +1,7 @@
 """수집한 로그 CSV(ms,hour,lux,level)를 점검한다. (표준 라이브러리만 사용)
 
 사용법:
-    python tools/validate_csv.py data/raw/log_xxx.csv [--levels 4]
+    python tools/validate_csv.py data/raw/log_xxx.csv [--levels 6]
 """
 import argparse
 import csv
@@ -10,9 +10,9 @@ import sys
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("path")
-    ap.add_argument("--levels", type=int, default=4, help="단계 수 (params.h 의 NUM_LEVELS)")
+    ap = argparse.ArgumentParser(description="수집 로그 CSV 유효성 점검 (기본 6단계: 0~5)")
+    ap.add_argument("path", help="검증할 로그 CSV 파일 경로")
+    ap.add_argument("--levels", type=int, default=6, help="단계 수 (params.h 의 NUM_LEVELS, 기본값: 6)")
     args = ap.parse_args()
 
     problems, rows = [], []

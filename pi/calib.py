@@ -1,33 +1,47 @@
 """단계별 실측값(lut.json) 읽기·쓰기.
 
 필름을 조립한 뒤, 같은 광원(LED 스탠드)에서 6가지 조합마다 실내 조도를 재서 저장한다.
+값 순서 (기본 6단계):
+    0단계: 꺼짐/꺼짐 (off / off)
+    1단계: 45V/꺼짐 (low / off)
+    2단계: 45V/45V  (low / low)
+    3단계: 100V/꺼짐 (high / off)
+    4단계: 100V/45V  (high / low)
+    5단계: 100V/100V (high / high)
+
 이 파일이 있으면 config.py가 읽어서
   1) 단계 순서를 실측 밝기 순으로 자동 정렬하고 (2·3단계 순서가 바뀌어도 코드 수정 없음)
   2) 판단 규칙·시뮬레이터·AI 학습이 모두 실측 투과율을 쓰게 한다.
 
-lut.json 형식
+lut.json 형식:
 {
-  "levels": [["off","off"], ["low","off"], ["low","low"], ["high","off"], ["high","low"], ["high","high"]],
-  "lux":    [182, 279, 410, 475, 715, 1273],   같은 광원에서 각 조합의 실내 조도
-  "ambient_lux": 5,                            광원을 끄고 잰 실내 잡광 (빼고 계산)
-  "measured": "2026-10-28 15:00", "note": "LED 스탠드 10단계, 거리 30cm"
+  "levels": 6,
+  "lux": [40.0, 110.0, 230.0, 300.0, 450.0, 640.0],
+  "ratio": [0.06, 0.17, 0.36, 0.47, 0.70, 1.0],
+  "lamp_step": 7, "measured_at": "2026-10-28T15:00"
 }
 
-손으로 잰 값으로 바로 만들기 (웹 수동 모드로 0~5단계를 하나씩 켜고 화면의 실내 조도를 적는다):
-  python -m pi.calib --lux 182 279 410 475 715 1273 --ambient 5 --note "LED 30cm"
-값 순서는 config.py 기본 단계표 순서(꺼짐/꺼짐, 45V/꺼짐, 45V/45V, 100V/꺼짐, 100V/45V, 100V/100V).
-
-주의: 이 파일은 config를 import하지 않는다 (config가 이 파일을 쓰기 때문).
+수동 측정 실행 예:
+  python -m pi.calib --lux 40 110 230 300 450 640 --ambient 5 --lamp-step 7
 """
 import argparse
+from datetime import datetime
 import json
 import os
-from datetime import datetime
 from typing import List, Optional, Sequence, Tuple
 
 DEFAULT_PATH = os.environ.get("LIGHTQ_LUT", "pi/data/lut.json")
 DEFAULT_LEVELS = [("off", "off"), ("low", "off"), ("low", "low"),
                   ("high", "off"), ("high", "low"), ("high", "high")]
+
+COMBO_NAMES = [
+    "꺼짐/꺼짐",
+    "45V/꺼짐",
+    "45V/45V",
+    "100V/꺼짐",
+    "100V/45V",
+    "100V/100V",
+]
 
 
 class Calibration:
@@ -60,7 +74,10 @@ def load(path: str = DEFAULT_PATH) -> Optional[Calibration]:
         with open(path, encoding="utf-8") as f:
             d = json.load(f)
         if "lux" in d:
-            return build(d.get("levels", DEFAULT_LEVELS), d["lux"], d.get("ambient_lux", 0.0), d)
+            levels = d.get("combos") or d.get("levels")
+            if not isinstance(levels, (list, tuple)) or len(levels) != len(d["lux"]):
+                levels = DEFAULT_LEVELS
+            return build(levels, d["lux"], d.get("ambient_lux", 0.0), d)
         if "ratio" in d:                                   # 예전 형식: 상대 투과율만
             return Calibration(list(DEFAULT_LEVELS), [float(r) for r in d["ratio"]],
                                [], 0.0, d)
@@ -70,26 +87,39 @@ def load(path: str = DEFAULT_PATH) -> Optional[Calibration]:
 
 
 def save(path: str, lux: Sequence[float], ambient: float = 0.0,
-         levels: Sequence[Sequence[str]] = DEFAULT_LEVELS, note: str = "") -> Calibration:
+         levels: Sequence[Sequence[str]] = DEFAULT_LEVELS, note: str = "",
+         lamp_step: int = 7) -> Calibration:
     cal = build(levels, lux, ambient)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    top_lux = cal.lux[-1] if cal.lux and cal.lux[-1] > 0 else 1.0
+    ratios = [round(float(x) / top_lux, 2) for x in cal.lux]
     with open(path, "w", encoding="utf-8") as f:
-        json.dump({"levels": [list(x) for x in levels], "lux": list(lux), "ambient_lux": ambient,
-                   "measured": datetime.now().strftime("%Y-%m-%d %H:%M"), "note": note},
-                  f, ensure_ascii=False, indent=2)
+        json.dump({
+            "levels": 6,
+            "combos": [list(x) for x in cal.levels],
+            "combinations": COMBO_NAMES,
+            "lux": [float(x) for x in cal.lux],
+            "ratio": ratios,
+            "ambient_lux": ambient,
+            "lamp_step": lamp_step,
+            "measured_at": datetime.now().strftime("%Y-%m-%dT%H:%M"),
+            "measured": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "note": note,
+        }, f, ensure_ascii=False, indent=2)
     return cal
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="단계별 실측값으로 lut.json 만들기")
-    ap.add_argument("--lux", type=float, nargs="+", required=True, help="조합별 실내 조도 (기본 단계표 순서)")
+    ap = argparse.ArgumentParser(description="단계별 실측값으로 lut.json 만들기 (값 순서: 꺼짐/꺼짐, 45V/꺼짐, 45V/45V, 100V/꺼짐, 100V/45V, 100V/100V)")
+    ap.add_argument("--lux", type=float, nargs="+", required=True, help="조합별 실내 조도 6개 (순서: 꺼짐/꺼짐, 45V/꺼짐, 45V/45V, 100V/꺼짐, 100V/45V, 100V/100V)")
     ap.add_argument("--ambient", type=float, default=0.0, help="광원을 끄고 잰 실내 잡광")
+    ap.add_argument("--lamp-step", type=int, default=7, help="스탠드 밝기 단계 (기본값: 7)")
     ap.add_argument("--note", default="")
     ap.add_argument("--out", default=DEFAULT_PATH)
     args = ap.parse_args()
     if len(args.lux) != len(DEFAULT_LEVELS):
-        ap.error(f"--lux 값은 {len(DEFAULT_LEVELS)}개여야 함")
-    cal = save(args.out, args.lux, args.ambient, note=args.note)
+        ap.error(f"--lux 값은 {len(DEFAULT_LEVELS)}개여야 함 (순서: 꺼짐/꺼짐, 45V/꺼짐, 45V/45V, 100V/꺼짐, 100V/45V, 100V/100V)")
+    cal = save(args.out, args.lux, args.ambient, note=args.note, lamp_step=args.lamp_step)
     name = {"off": "꺼짐", "low": "45V", "high": "100V"}
     print(f"저장: {args.out}")
     print("정렬된 단계 (0 = 가장 어두움)")
