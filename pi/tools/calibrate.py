@@ -140,7 +140,7 @@ def run_calibration(sim: bool, settle_s: float, samples: int, lamp_step: int, ou
         # 단계 순서 검증 (밝기가 순차적으로 증가해야 함)
         for i in range(len(lux_list) - 1):
             if lux_list[i] > lux_list[i + 1]:
-                print(f"⚠️ 경고: {i}단계({COMBO_NAMES[i]}: {lux_list[i]:.1f} lux)가 {i + 1}단계({COMBO_NAMES[i + 1]}: {lux_list[i + 1]:.1f} lux)보다 밝습니다! 단계 순서가 실측과 다릅니다.")
+                print(f"[경고] {i}단계({COMBO_NAMES[i]}: {lux_list[i]:.1f} lux)가 {i + 1}단계({COMBO_NAMES[i + 1]}: {lux_list[i + 1]:.1f} lux)보다 밝습니다! 단계 순서가 실측과 다릅니다.")
 
         # ratio 계산 (각 단계 lux / 5단계 lux)
         top_lux = lux_list[5] if lux_list[5] > 0 else 1.0
