@@ -82,3 +82,18 @@ def test_pref_api(tmp_path):
     assert c.get("/api/state").get_json()["pref"]["active"] == "재우"
     assert c.post("/api/pref/profile", json={"name": ""}).status_code == 400
     assert c.post("/api/pref/reset").status_code == 200
+
+
+def test_learning_can_be_turned_off(tmp_path):
+    sensor, relays, clock, outdoor = build_devices(False, 0, "12:00")
+    store = LogStore(str(tmp_path / "t.db"))
+    ctrl = Controller(sensor, relays, clock, outdoor, store, PreferenceStore(path=None))
+    c = create_app(ctrl, store).test_client()
+    assert c.post("/api/pref/learn", json={"enabled": False}).status_code == 200
+    assert c.post("/api/pref/learn", json={"enabled": "no"}).status_code == 400
+    ctrl.step()
+    ctrl.set_manual(5)
+    for _ in range(config.PREF_SETTLE + 1):
+        ctrl.step()
+    v = ctrl.snapshot()["pref"]
+    assert v["learn"] is False and v["count"]["day"] == 0

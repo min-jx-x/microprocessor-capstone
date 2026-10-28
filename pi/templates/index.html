@@ -3,105 +3,145 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LightQ 조광 윈도우</title>
-  <!-- 핫스팟에는 인터넷이 없으므로 외부 CDN 없이 로컬 파일만 쓴다 -->
+  <title>라이트큐</title>
+  <!-- 핫스팟에는 인터넷이 없으므로 외부 글꼴·라이브러리 없이 로컬 파일만 쓴다 -->
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<header>
-  <div class="brand">LightQ <span>조광 윈도우</span></div>
-  <div class="clock"><span id="vtime">--:--:--</span><small id="speed"></small></div>
+<script>
+  // 저장된 테마를 그리기 전에 먼저 적용 (깜빡임 방지). 저장소를 못 쓰면 시스템 설정을 따름
+  try { const t = localStorage.getItem("lightq-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<header class="hd">
+  <div class="hd-title">
+    <h1>라이트큐</h1>
+    <p>실시간 조광 상태</p>
+  </div>
+  <div class="hd-right">
+    <span class="chip" id="period-chip">-</span>
+    <span class="clock"><b id="vtime">--:--:--</b><small id="speed"></small></span>
+    <span class="conn" id="conn">연결 중</span>
+    <button class="theme" id="theme" aria-label="화면 테마 바꾸기">테마: 자동</button>
+  </div>
 </header>
 
-<main>
-  <div class="alert" id="alert" hidden></div>
-  <section class="cards">
-    <div class="card"><div class="k">실내 조도</div><div class="v"><b id="lux">-</b> lux</div></div>
-    <div class="card"><div class="k">목표 조도</div><div class="v"><b id="target">-</b> <span id="target-unit">lux</span></div></div>
-    <div class="card"><div class="k">현재 단계</div><div class="v"><b id="level">-</b> / {{ num_levels - 1 }}</div><div class="sub" id="films">-</div></div>
-    <div class="card"><div class="k">시간대</div><div class="v"><b id="period">-</b></div><div class="sub" id="mode-text">-</div></div>
-  </section>
+<main class="grid">
+  <!-- 왼쪽: 지금 상태와 조작 -->
+  <section class="col">
+    <div class="alert" id="alert" hidden></div>
 
-  <section class="panel">
-    <div class="row between">
-      <h2>판단 방식</h2>
-      <div class="seg" role="group" aria-label="판단 방식">
-        <button data-brain="rule">규칙</button>
-        <button data-brain="ai">AI</button>
-      </div>
+    <div class="card">
+      <div class="lb">현재 실내 조도</div>
+      <div class="big"><span id="lux">-</span><small>lux</small></div>
+      <div class="sub" id="lux-sub">-</div>
     </div>
-    <p class="hint" id="brain-text">-</p>
-  </section>
 
-  <section class="panel">
-    <div class="row between">
-      <h2>개인 선호</h2>
+    <div class="card">
       <div class="row">
+        <div class="lb">투과 단계</div>
+        <button class="switch" id="auto-switch" role="switch" aria-checked="true" aria-label="자동 제어">
+          <span>자동 제어</span><i></i>
+        </button>
+      </div>
+      <div class="levels" id="levels">
+        {% for i in range(num_levels) %}
+        <button class="lv" data-level="{{ i }}" style="--shade: {{ (1 - i / (num_levels - 1)) | round(2) }}">{{ i }}</button>
+        {% endfor %}
+      </div>
+      <div class="ends"><span>불투명</span><span id="films">-</span><span>투명</span></div>
+      <p class="hint">단계를 누르면 수동으로 바뀝니다. 다시 맡기려면 자동 제어를 켜세요.</p>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="lb">판단 방식</div>
+        <div class="seg" role="group" aria-label="판단 방식">
+          <button data-brain="rule">규칙</button>
+          <button data-brain="ai">AI</button>
+        </div>
+      </div>
+      <div class="judge">
+        <div><span class="k">규칙</span><b id="ans-rule">-</b></div>
+        <div><span class="k">AI</span><b id="ans-ai">-</b></div>
+        <div><span class="k">빛 변화</span><b id="rate">-</b></div>
+      </div>
+      <p class="hint" id="brain-text">-</p>
+    </div>
+
+    <div class="card" id="sim-panel" hidden>
+      <div class="row">
+        <div class="lb">시뮬레이션</div>
+        <span class="sub">바깥 빛 <b id="outdoor">-</b> lux</span>
+      </div>
+      <div class="row">
+        <div class="seg" id="speeds">
+          <button data-speed="1">1×</button><button data-speed="60">60×</button><button data-speed="720">720×</button>
+        </div>
+        <button id="burst">직사광</button>
+      </div>
+  </section>
+
+  <!-- 가운데: 기록 -->
+  <section class="col">
+    <div class="card card-chart">
+      <div class="row">
+        <div class="lb">조도 기록</div>
+        <div class="legend"><i class="l-lux"></i>실내 <i class="l-target"></i>목표 <i class="l-out"></i>바깥 빛</div>
+      </div>
+      <div class="chart-box" id="chart-box"><svg id="chart" role="img" aria-label="실내 조도와 목표 조도 그래프"></svg></div>
+      <div class="chart-box chart-lv" id="lv-box"><svg id="levelchart" role="img" aria-label="단계 변화 그래프"></svg></div>
+      <div class="row foot">
+        <span>단계 전환 <b id="switches">0</b>회 · 회색 띠 = 목표 없는 시간(저녁·취침, 0단계)</span>
+        <a href="/api/export.csv">기록 CSV 내려받기</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 오른쪽: 개인 맞춤 설정 -->
+  <section class="col">
+    <div class="col-title">개인 맞춤 설정</div>
+
+    <div class="card">
+      <div class="lb">기상 시간</div>
+      <div class="big wake-num" id="wake-big">07:30</div>
+      <div class="row wake">
+        <input type="time" id="wake" value="07:30" aria-label="기상 시간 바꾸기">
+        <button id="wake-save" class="primary">저장</button>
+      </div>
+      <div class="row"><span class="rt">20분 전부터 밝게</span><span class="sub" id="wake-msg">기상 준비 20 → 200 lux</span></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="lb">선호 밝기</div>
         <select id="profile" aria-label="사용자"></select>
-        <input id="new-profile" placeholder="새 사용자" maxlength="20" size="8">
+      </div>
+      <div class="pref" id="pref-morning">
+        <div class="row"><span class="rt">아침</span><span class="tval" data-k="t">-</span></div>
+        <div class="sl"><i></i><b></b></div>
+        <div class="ends"><span>어둡게</span><span class="tag" data-k="tag">-</span><span>밝게</span></div>
+      </div>
+      <div class="pref" id="pref-day">
+        <div class="row"><span class="rt">주간</span><span class="tval" data-k="t">-</span></div>
+        <div class="sl"><i></i><b></b></div>
+        <div class="ends"><span>어둡게</span><span class="tag" data-k="tag">-</span><span>밝게</span></div>
+      </div>
+      <div class="row add">
+        <input id="new-profile" placeholder="새 사용자 이름" maxlength="20" aria-label="새 사용자 이름">
         <button id="profile-add">추가</button>
+        <button id="pref-reset" class="ghost">초기화</button>
       </div>
     </div>
-    <div class="pref-grid">
-      <div><span class="k">아침 목표</span><div><b id="pref-morning">-</b></div><div class="sub" id="pref-morning-n"></div></div>
-      <div><span class="k">주간 목표</span><div><b id="pref-day">-</b></div><div class="sub" id="pref-day-n"></div></div>
-    </div>
-    <p class="hint" id="pref-text">단계를 직접 바꾸면 3초 동안 실내 조도를 재서 그 밝기를 이 사용자의 선호로 배웁니다.</p>
-    <button id="pref-reset" class="small-btn">이 사용자 선호 초기화</button>
-  </section>
 
-  <section class="panel">
-    <div class="row between">
-      <h2>단계 조절</h2>
-      <div class="seg" role="group" aria-label="제어 모드">
-        <button id="mode-auto" data-mode="auto">자동</button>
-        <button id="mode-manual" data-mode="manual">수동</button>
+    <div class="card">
+      <div class="row">
+        <span class="rt">수동 조절 학습</span>
+        <button class="switch" id="learn-switch" role="switch" aria-checked="true" aria-label="수동 조절 학습"><i></i></button>
       </div>
+      <p class="sub" id="pref-text">직접 바꾼 단계를 선호도에 반영</p>
     </div>
-    <div class="levels" id="levels">
-      {% for i in range(num_levels) %}
-      <button class="lv" data-level="{{ i }}" style="--shade: {{ (1 - i / (num_levels - 1)) | round(2) }}; color: {{ '#ffffff' if i < num_levels / 2 else '#1b2a47' }}">{{ i }}</button>
-      {% endfor %}
-    </div>
-    <p class="hint">버튼을 누르면 수동 모드로 바뀌고 그 단계를 유지합니다. 0 = 가장 어두움, {{ num_levels - 1 }} = 가장 밝음.</p>
-  </section>
 
-  <section class="panel">
-    <div class="row between">
-      <h2>조도 기록</h2>
-      <div class="legend"><i class="l-lux"></i>실내 조도 <i class="l-target"></i>목표 <i class="l-out"></i>바깥 빛</div>
-    </div>
-    <svg id="chart" viewBox="0 0 600 220" role="img" aria-label="실내 조도 그래프"></svg>
-    <svg id="levelchart" viewBox="0 0 600 60" role="img" aria-label="단계 그래프"></svg>
-    <div class="row between small">
-      <span>전환 횟수 <b id="switches">0</b></span>
-      <a href="/api/export.csv">로그 CSV 내려받기</a>
-    </div>
-    <p class="hint">주황 점선은 목표가 있는 기상 준비·아침·주간에만 나옵니다. 저녁(18시)부터 기상 20분 전까지는 0단계 고정이라 회색 띠로 표시됩니다.</p>
-  </section>
-
-  <section class="panel">
-    <h2>기상 설정</h2>
-    <div class="row">
-      <input type="time" id="wake" value="07:30">
-      <button id="wake-save" class="primary">저장</button>
-      <span class="small" id="wake-msg"></span>
-    </div>
-    <p class="hint">기상 20분 전부터 목표 조도를 천천히 올립니다.</p>
-  </section>
-
-  <section class="panel" id="sim-panel" hidden>
-    <h2>시뮬레이션</h2>
-    <div class="row">
-      <span class="small">배속</span>
-      <div class="seg" id="speeds">
-        <button data-speed="1">1×</button>
-        <button data-speed="60">60×</button>
-        <button data-speed="720">720×</button>
-      </div>
-      <button id="burst">직사광 발생</button>
-    </div>
-    <p class="hint">720×는 하루를 2분에 재생합니다. 바깥 빛 <b id="outdoor">-</b> lux</p>
+</div>
   </section>
 </main>
 
