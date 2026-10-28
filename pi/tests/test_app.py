@@ -49,3 +49,39 @@ def test_sensor_failure_goes_safe(tmp_path):
         ctrl.step()
     assert ctrl.level == config.SAFE_LEVEL
     assert not any(relays.state.values())      # 모든 릴레이 꺼짐
+
+
+def test_time_sync(tmp_path):
+    """휴대폰 시각과 30초 넘게 차이 나면 맞추고, 시각을 정한 시연 모드에서는 맞추지 않는다."""
+    from datetime import timedelta
+    sensor, relays, clock, outdoor = build_devices(False, 1, None)
+    ctrl = Controller(sensor, relays, clock, outdoor, None)
+    phone = clock.now() + timedelta(hours=3)
+    local = phone.strftime("%Y-%m-%dT%H:%M:%S")
+
+    off = create_app(ctrl, None).test_client()
+    assert off.post("/api/time", json={"local": local}).get_json()["adjusted"] is False
+
+    c = create_app(ctrl, None, time_sync=True).test_client()
+    assert c.post("/api/time", json={"local": "x"}).status_code == 400
+    assert c.post("/api/time", json={"local": local}).get_json()["adjusted"] is True
+    assert abs((clock.now() - phone).total_seconds()) < 5
+    assert c.post("/api/time", json={"local": local}).get_json()["adjusted"] is False   # 이미 맞음
+
+
+def test_log_is_batched_and_pruned(tmp_path):
+    import sqlite3
+    import time as _time
+    path = str(tmp_path / "b.db")
+    store = LogStore(path, commit_s=3600, keep_days=1)
+    store.add("12:00:00", 12.0, 100, 500, 2, "rule")
+    count = lambda: sqlite3.connect(path).execute("SELECT COUNT(*) FROM log").fetchone()[0]
+    assert count() == 0                                   # 아직 메모리에만
+    store.add("12:00:01", 12.0, 100, 500, 3, "rule", "rule 2->3")
+    assert count() == 2                                   # 이벤트는 바로 저장
+    store.add("12:00:02", 12.0, 100, 500, 3, "rule")
+    assert len(store.export_csv().splitlines()) == 4      # 내보내기 전에 저장
+    store.conn.execute("UPDATE log SET ts = ? WHERE vtime = '12:00:00'", (_time.time() - 3 * 86400,))
+    store.last_prune = 0
+    store.close()
+    assert count() == 2                                   # 하루 지난 기록은 지움
