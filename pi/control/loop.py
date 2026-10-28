@@ -43,7 +43,8 @@ class Controller:
             ai = AIPolicy(self.lut)
             self.policies["ai"] = ai
             self.ai_meta = dict(ai.meta, stale=ai.stale)
-        self.brain = "ai" if "ai" in self.policies else "rule"
+        # 실측 lut.json을 넣고 아직 다시 학습하지 않았으면(stale) 규칙으로 시작한다. 웹에서 AI로 바꿀 수는 있음
+        self.brain = "ai" if self.ai_meta is not None and not self.ai_meta["stale"] else "rule"
 
         self.lock = threading.Lock()    # 웹 요청 스레드와 제어 스레드가 상태를 같이 만지므로
         self.mode = "auto"              # auto: 규칙이 단계 결정 / manual: 사용자가 고른 단계 유지

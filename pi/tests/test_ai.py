@@ -43,3 +43,26 @@ def test_rising_light_not_brighter_than_steady():
     for inc in (500, 650, 820, 1000):
         lv_r, _ = rising.decide(inc * lut[cur], 12.0, cur, 7.5)
     assert lv_r <= lv_s
+
+
+@needs_model
+def test_stale_model_starts_with_rule(monkeypatch):
+    """모델이 학습할 때와 투과율표가 다르면(실측 후 재학습 전) 규칙으로 시작해야 한다."""
+    from pi.app import build_devices
+    from pi.control.loop import Controller
+    sensor, relays, clock, outdoor = build_devices(False, 0, "12:00")
+    monkeypatch.setattr(config, "LUT_T", [0.06, 0.17, 0.36, 0.47, 0.70, 1.0])
+    ctrl = Controller(sensor, relays, clock, outdoor, None)
+    assert ctrl.ai_meta["stale"] and ctrl.brain == "rule"
+    assert "ai" in ctrl.policies                 # 웹에서 직접 고를 수는 있음
+
+
+@needs_model
+def test_stale_when_level_order_changed(monkeypatch):
+    from pi.ai.policy import AIPolicy
+    lut = list(config.LUT_T)
+    assert not AIPolicy(lut).stale
+    levels = list(config.LEVELS)
+    levels[2], levels[3] = levels[3], levels[2]
+    monkeypatch.setattr(config, "LEVELS", levels)
+    assert AIPolicy(lut).stale

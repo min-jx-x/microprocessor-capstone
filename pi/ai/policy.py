@@ -7,9 +7,10 @@ import json
 from collections import deque
 from typing import Dict, List, Tuple
 
-from pi.ai.features import HISTORY, make_features
 from typing import Optional
 
+from pi import config
+from pi.ai.features import HISTORY, make_features
 from pi.control.decide import PERIOD_NAMES, incident_of, personal_target
 
 DEFAULT_MODEL = "pi/data/ai_tree.json"
@@ -24,10 +25,14 @@ class AIPolicy:
         self.lut = lut
         self.meta = self.m.get("meta", {})
         self.hist: deque = deque(maxlen=HISTORY)
-        # 모델을 학습할 때의 투과율표와 지금 투과율표가 다르면 다시 학습해야 한다 (python -m pi.ai.retrain)
+        # 모델을 학습할 때의 투과율표·단계 순서와 지금 값이 다르면 다시 학습해야 한다 (python -m pi.ai.retrain)
         trained_lut = self.meta.get("lut")
-        self.stale = trained_lut is not None and any(
-            abs(a - b) > 1e-3 for a, b in zip(trained_lut, lut))
+        trained_levels = self.meta.get("levels")
+        self.stale = (
+            (trained_lut is not None and (len(trained_lut) != len(lut) or any(
+                abs(a - b) > 1e-3 for a, b in zip(trained_lut, lut))))
+            or (trained_levels is not None
+                and [tuple(x) for x in trained_levels] != [tuple(x) for x in config.LEVELS]))
         if self.stale:
             print("[ai] 경고: 모델이 지금과 다른 투과율표로 학습됨 → python -m pi.ai.retrain 필요")
 
