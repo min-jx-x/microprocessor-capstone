@@ -100,6 +100,14 @@ def create_app(ctrl: Controller, store: LogStore) -> Flask:
             return jsonify(error=str(e)), 400
         return jsonify(ok=True)
 
+    @app.post("/api/pref/learn")
+    def pref_learn():
+        value = body().get("enabled")
+        if not isinstance(value, bool):
+            return jsonify(error="enabled는 true 또는 false"), 400
+        ctrl.set_learning(value)
+        return jsonify(ok=True)
+
     @app.post("/api/pref/reset")
     def pref_reset():
         ctrl.reset_preference()

@@ -57,6 +57,7 @@ class Controller:
         self.pref = pref if pref is not None else PreferenceStore(path=None)
         self._pref_pending = None       # 수동 조작 후 선호 조도를 재는 중이면 {"level", "samples"}
         self.last_learn = None          # 화면 표시용: 마지막으로 배운 내용
+        self.learn_enabled = True       # 수동 조작을 선호로 배울지 (웹에서 끄고 켬)
         self.history = deque(maxlen=config.HISTORY_POINTS)
 
         self.driver.apply(0)            # 시작은 항상 0단계(모두 꺼짐)
@@ -176,7 +177,8 @@ class Controller:
             if prev != level:
                 self.switches += 1
             self.stab.reset()
-            self._pref_pending = {"level": level, "samples": []}   # 다음 측정부터 선호 조도 수집
+            if self.learn_enabled:      # 다음 측정부터 선호 조도 수집
+                self._pref_pending = {"level": level, "samples": []}
             lux, hour = self.lux, self.clock.hour()
             target = self.info.get("target")
         if self.store is not None and lux is not None:
@@ -206,6 +208,13 @@ class Controller:
             self.last_learn = None
             self.stab.reset()
 
+    def set_learning(self, enabled: bool) -> None:
+        """수동 조작 학습 켜기/끄기. 끄면 단계를 직접 바꿔도 목표가 바뀌지 않는다 (시연·시험용)."""
+        with self.lock:
+            self.learn_enabled = bool(enabled)
+            if not self.learn_enabled:
+                self._pref_pending = None
+
     def reset_preference(self) -> None:
         self.pref.reset()
         with self.lock:
@@ -223,6 +232,7 @@ class Controller:
         v["targets"] = {g: [b, round(b * (1 + v["offset"][g]))] for g, b in base.items()}
         v["last"] = self.last_learn
         v["measuring"] = self._pref_pending is not None
+        v["learn"] = self.learn_enabled
         return v
 
     def snapshot(self) -> dict:
