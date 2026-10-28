@@ -34,16 +34,6 @@ DEFAULT_PATH = os.environ.get("LIGHTQ_LUT", "pi/data/lut.json")
 DEFAULT_LEVELS = [("off", "off"), ("low", "off"), ("low", "low"),
                   ("high", "off"), ("high", "low"), ("high", "high")]
 
-COMBO_NAMES = [
-    "꺼짐/꺼짐",
-    "45V/꺼짐",
-    "45V/45V",
-    "100V/꺼짐",
-    "100V/45V",
-    "100V/100V",
-]
-
-
 class Calibration:
     """정렬이 끝난 실측 결과. levels[i]와 ratio[i]는 같은 단계(i가 클수록 밝음)."""
 
@@ -91,15 +81,14 @@ def save(path: str, lux: Sequence[float], ambient: float = 0.0,
          lamp_step: int = 7) -> Calibration:
     cal = build(levels, lux, ambient)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    top_lux = cal.lux[-1] if cal.lux and cal.lux[-1] > 0 else 1.0
-    ratios = [round(float(x) / top_lux, 2) for x in cal.lux]
+    volt = {"off": "꺼짐", "low": "45V", "high": "100V"}
     with open(path, "w", encoding="utf-8") as f:
         json.dump({
-            "levels": 6,
+            "levels": len(cal.levels),
             "combos": [list(x) for x in cal.levels],
-            "combinations": COMBO_NAMES,
+            "combinations": [f"{volt[a]}/{volt[b]}" for a, b in cal.levels],   # combos와 같은 순서
             "lux": [float(x) for x in cal.lux],
-            "ratio": ratios,
+            "ratio": cal.ratio,                   # 잡광을 뺀 값. 프로그램이 실제로 쓰는 값과 같음
             "ambient_lux": ambient,
             "lamp_step": lamp_step,
             "measured_at": datetime.now().strftime("%Y-%m-%dT%H:%M"),

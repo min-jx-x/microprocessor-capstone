@@ -10,18 +10,22 @@ from typing import Optional
 from pi import config
 
 
-def relay_plan(level: int) -> dict[str, bool]:
-    """단계 번호를 {"SA", "PA", "SB", "PB"} 릴레이 상태로 변환한다.
+def combo_plan(a: str, b: str) -> dict[str, bool]:
+    """필름 조합 (A 상태, B 상태)를 {"SA", "PA", "SB", "PB"} 릴레이 상태로 변환한다.
 
     필름 상태가 'high'면 S=True(NO=100V), 'low'면 S=False(NC=45V), 'off'면 P=False·S=False.
     """
-    a, b = config.LEVELS[level]
     return {
         "SA": a == "high",
         "PA": a != "off",
         "SB": b == "high",
         "PB": b != "off",
     }
+
+
+def relay_plan(level: int) -> dict[str, bool]:
+    """단계 번호를 릴레이 상태로 변환한다. 단계 순서는 config.LEVELS(실측 후 밝기 순)를 따른다."""
+    return combo_plan(*config.LEVELS[level])
 
 
 class LevelDriver:
@@ -38,8 +42,19 @@ class LevelDriver:
         """지정한 단계로 릴레이를 안전한 순서로 전환한다."""
         if level == self.current_level:
             return
+        self._switch(relay_plan(level))
+        self.current_level = level
 
-        plan = relay_plan(level)
+    def apply_combo(self, a: str, b: str) -> None:
+        """단계 번호를 거치지 않고 필름 조합을 직접 켠다 (캘리브레이션용).
+
+        lut.json이 있으면 config.LEVELS가 실측 밝기 순으로 바뀌므로,
+        조합별로 다시 잴 때는 단계 번호 대신 이 함수를 써야 조합이 어긋나지 않는다.
+        """
+        self._switch(combo_plan(a, b))
+        self.current_level = None
+
+    def _switch(self, plan: dict[str, bool]) -> None:
         for sel, power in (("SA", "PA"), ("SB", "PB")):
             if plan[sel] != self.state[sel]:
                 if self.state[power]:
@@ -49,8 +64,6 @@ class LevelDriver:
                 time.sleep(self.settle_s)
             if plan[power] != self.state[power]:
                 self._set(power, plan[power])
-
-        self.current_level = level
 
     def _set(self, name: str, on: bool) -> None:
         self.relays.set(name, on)
