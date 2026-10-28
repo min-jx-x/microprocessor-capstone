@@ -18,7 +18,8 @@ import os
 GPIO_PINS = {"SA": 17, "PA": 27, "SB": 22, "PB": 23}
 
 # 릴레이 모듈이 LOW 신호에서 켜지는 타입이면 True. 릴레이 시험 후 확정한다.
-RELAY_ACTIVE_LOW = True
+## 릴레이 시험 후 False 확정
+RELAY_ACTIVE_LOW = False
 
 # BH1750 조도센서 (I2C)
 BH1750_BUS = 1        # Pi의 I2C 버스 번호

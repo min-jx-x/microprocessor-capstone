@@ -22,9 +22,11 @@ class GpioRelays:
         self.devices: dict[str, OutputDevice] = {}
 
         for name, pin in self.pins.items():
+            # PA, PB 모듈만 트리거 특성이 반대이므로 active_high 논리를 반전 설정
+            is_active_high = self.active_low if name in ("PA", "PB") else not self.active_low
             self.devices[name] = OutputDevice(
                 pin,
-                active_high=not self.active_low,
+                active_high=is_active_high,
                 initial_value=False
             )
 
