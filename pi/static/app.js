@@ -254,5 +254,13 @@ showTheme();
 new ResizeObserver(() => { if (last) { drawChart(last.history, last.sim); drawLevels(last.history, last.num_levels); } })
   .observe($("chart-box"));
 
+// 핫스팟에는 인터넷이 없어 Pi 시각이 틀릴 수 있으므로, 열 때 휴대폰 시각을 보낸다
+function syncTime() {
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  const local = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  post("/api/time", { local }).catch(() => {});
+}
+
+syncTime();
 refresh();
 setInterval(refresh, 1000);

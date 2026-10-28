@@ -53,7 +53,8 @@ def build_devices(real: bool, speed: float, start: str = None):
     return sensor, relays, clock, outdoor
 
 
-def create_app(ctrl: Controller, store: LogStore) -> Flask:
+def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False) -> Flask:
+    """time_sync: 휴대폰 시각으로 시계를 맞출지. --start/--speed로 시각을 정한 시연·시뮬레이션에서는 끈다."""
     app = Flask(__name__)
     app.json.ensure_ascii = False       # 한글 오류 메시지를 그대로 보이게
 
@@ -121,6 +122,20 @@ def create_app(ctrl: Controller, store: LogStore) -> Flask:
             return jsonify(error="시각 형식은 HH:MM"), 400
         return jsonify(ok=True)
 
+    @app.post("/api/time")
+    def sync_time():
+        """휴대폰 브라우저의 현지 시각("2026-10-28T16:47:52")으로 시계를 맞춘다."""
+        try:
+            phone = datetime.fromisoformat(str(body().get("local")))
+        except ValueError:
+            return jsonify(error="시각 형식은 YYYY-MM-DDTHH:MM:SS"), 400
+        diff = (phone - ctrl.clock.now()).total_seconds()
+        adjusted = time_sync and abs(diff) > config.TIME_SYNC_MIN_DIFF_S
+        if adjusted:
+            ctrl.clock.set_now(phone)
+            print(f"[time] 휴대폰 시각으로 맞춤: {phone:%Y-%m-%d %H:%M:%S} (차이 {diff:+.0f}초)")
+        return jsonify(ok=True, adjusted=adjusted, diff_s=round(diff))
+
     # ---- 시뮬레이션 전용 (실제 장치에서는 400) ----
     @app.post("/api/sim/speed")
     def sim_speed():
@@ -168,7 +183,8 @@ def main() -> None:
     store = LogStore(config.DB_PATH)
     ctrl = Controller(sensor, relays, clock, outdoor, store, PreferenceStore())
     ctrl.start()
-    app = create_app(ctrl, store)
+    # 실제 시각을 따라가는 경우에만 휴대폰 시각으로 맞춘다 (시각 고정·배속 시연은 그대로 둠)
+    app = create_app(ctrl, store, time_sync=args.start is None and args.speed == 1)
     try:
         # use_reloader=False: 자동 재시작이 켜지면 제어 스레드가 두 개 생겨 릴레이를 동시에 건드린다
         app.run(host=args.host, port=args.port, debug=False, use_reloader=False, threaded=True)
@@ -176,6 +192,7 @@ def main() -> None:
         ctrl.stop()
         relays.close()
         sensor.close()
+        store.close()
 
 
 if __name__ == "__main__":

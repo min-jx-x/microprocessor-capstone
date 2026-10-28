@@ -10,15 +10,19 @@
 
 Pi(또는 시뮬레이션 모드)에서 실행하여 0~5단계를 차례로 적용하고,
 각 단계에서 3초간 안정화 대기 후 조도(lux)를 10번 측정하여 평균을 계산한다.
+측정 전에 광원을 끄고 실내 잡광도 잰다 (--ambient 로 값을 직접 줄 수도 있음).
 결과는 pi/data/lut.json에 저장된다.
+
+릴레이는 단계 번호가 아니라 필름 조합으로 직접 켠다. lut.json이 이미 있으면
+config.LEVELS가 실측 밝기 순으로 바뀌어 있어서, 단계 번호로 켜면 조합이 어긋나기 때문이다.
 
 사용법:
     python pi/tools/calibrate.py --sim                  # 시뮬레이션 모드로 가짜 측정 및 lut.json 생성
     python pi/tools/calibrate.py --lamp-step 7          # 실제 Pi에서 실행 (스탠드 밝기 7단계)
     python pi/tools/calibrate.py --sim --settle 0.1     # 빠른 시뮬레이션 시험
+    python pi/tools/calibrate.py --ambient 5            # 잡광을 이미 알면 광원 끄기 단계 생략
 """
 import argparse
-from datetime import datetime
 import json
 import os
 import sys
@@ -55,7 +59,7 @@ def get_devices(sim: bool):
     """센서, 릴레이, 레벨 드라이버를 로드한다."""
     if sim:
         from pi.devices.sim import SimRelays, SimSensor
-        from pi.control.loop import LevelDriver
+        from pi.control.levels import LevelDriver
 
         relays = SimRelays()
         # 1000 lux 외부 광원 가정 (노이즈 최소화)
@@ -85,19 +89,49 @@ def get_devices(sim: bool):
         sensor.close()
         sys.exit(1)
 
-    try:
-        from pi.control.loop import LevelDriver
-    except ImportError:
-        try:
-            from pi.control.levels import LevelDriver
-        except ImportError:
-            from pi.control.placeholders import LevelDriver
-
+    from pi.control.levels import LevelDriver
     driver = LevelDriver(relays)
     return sensor, relays, driver
 
 
-def run_calibration(sim: bool, settle_s: float, samples: int, lamp_step: int, out_path: str):
+def measure(sensor, samples: int) -> list:
+    readings = []
+    for _ in range(samples):
+        val = sensor.read_lux()
+        if val is not None:
+            readings.append(val)
+        time.sleep(0.1)
+    return readings
+
+
+def measure_ambient(sensor, driver, sim: bool, settle_s: float, samples: int,
+                    lamp_step: int) -> float:
+    """광원을 끈 상태의 실내 잡광. 필름과 무관한 빛이라 투과율 계산에서 뺀다."""
+    driver.apply_combo("off", "off")
+    if sim:
+        outdoor = sensor.outdoor_lux
+        sensor.outdoor_lux = lambda: 0.0        # 시뮬레이션: 광원을 끈 것처럼
+    else:
+        input("광원(스탠드)을 끄고 Enter를 누르세요...")
+    try:
+        time.sleep(settle_s)
+        readings = measure(sensor, samples)
+    finally:
+        if sim:
+            sensor.outdoor_lux = outdoor
+    if not readings:
+        raise RuntimeError("잡광 측정에서 유효한 조도 값을 읽지 못했습니다.")
+    ambient = round(sum(readings) / len(readings), 1)
+    print(f"[잡광] {ambient:.1f} lux (표본 {len(readings)}개)")
+    if not sim:
+        input(f"광원을 다시 켜고(밝기 {lamp_step}단계) Enter를 누르세요...")
+    return ambient
+
+
+def run_calibration(sim: bool, settle_s: float, samples: int, lamp_step: int, out_path: str,
+                    ambient=None):
+    from pi import calib
+
     sensor, relays, driver = get_devices(sim)
 
     num_levels = len(LEVEL_COMBOS)
@@ -115,18 +149,18 @@ def run_calibration(sim: bool, settle_s: float, samples: int, lamp_step: int, ou
     print("-" * 65)
 
     try:
+        if ambient is None:
+            ambient = measure_ambient(sensor, driver, sim, settle_s, samples, lamp_step)
+        else:
+            print(f"[잡광] 입력값 {ambient:.1f} lux 사용")
+
         for lv in range(num_levels):
             combo_label = f"{lv}단계 [{COMBO_NAMES[lv]}]"
             print(f"[{combo_label} 적용 중...] 릴레이 설정 및 {settle_s:.1f}초 안정화 대기...", end="", flush=True)
-            driver.apply(lv)
+            driver.apply_combo(*LEVEL_COMBOS[lv])
             time.sleep(settle_s)
 
-            readings = []
-            for _ in range(samples):
-                val = sensor.read_lux()
-                if val is not None:
-                    readings.append(val)
-                time.sleep(0.1)
+            readings = measure(sensor, samples)
 
             if not readings:
                 raise RuntimeError(f"{combo_label}에서 유효한 조도 값을 읽지 못했습니다.")
@@ -142,24 +176,10 @@ def run_calibration(sim: bool, settle_s: float, samples: int, lamp_step: int, ou
             if lux_list[i] > lux_list[i + 1]:
                 print(f"[경고] {i}단계({COMBO_NAMES[i]}: {lux_list[i]:.1f} lux)가 {i + 1}단계({COMBO_NAMES[i + 1]}: {lux_list[i + 1]:.1f} lux)보다 밝습니다! 단계 순서가 실측과 다릅니다.")
 
-        # ratio 계산 (각 단계 lux / 5단계 lux)
-        top_lux = lux_list[5] if lux_list[5] > 0 else 1.0
-        ratio_list = [round(x / top_lux, 2) for x in lux_list]
-
-        measured_at = datetime.now().strftime("%Y-%m-%dT%H:%M")
-        result = {
-            "levels": num_levels,
-            "combos": [list(x) for x in LEVEL_COMBOS],
-            "combinations": COMBO_NAMES,
-            "lux": lux_list,
-            "ratio": ratio_list,
-            "lamp_step": lamp_step,
-            "measured_at": measured_at,
-        }
-
-        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
+        # 잡광을 빼고 밝기 순으로 정렬해 저장 (형식은 pi/calib.py와 같음)
+        calib.save(out_path, lux_list, ambient, levels=LEVEL_COMBOS, lamp_step=lamp_step)
+        with open(out_path, encoding="utf-8") as f:
+            result = json.load(f)
 
         print("\n[저장 완료]")
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -170,7 +190,7 @@ def run_calibration(sim: bool, settle_s: float, samples: int, lamp_step: int, ou
     finally:
         # 안전 복구: 0단계로 초기화 후 릴레이 및 센서 종료
         try:
-            driver.apply(0)
+            driver.apply_combo("off", "off")
             relays.all_off()
             relays.close()
             sensor.close()
@@ -185,6 +205,8 @@ def main():
     parser.add_argument("--settle", type=float, default=3.0, help="각 단계 전환 후 대기 시간(초, 기본값: 3.0)")
     parser.add_argument("--samples", type=int, default=10, help="각 단계별 조도 측정 횟수 (기본값: 10)")
     parser.add_argument("--out", default=DEFAULT_OUT, help="결과 json 저장 경로 (기본값: pi/data/lut.json)")
+    parser.add_argument("--ambient", type=float, default=None,
+                        help="실내 잡광(lux)을 직접 입력. 없으면 광원을 끄고 측정")
     args = parser.parse_args()
 
     run_calibration(
@@ -193,6 +215,7 @@ def main():
         samples=args.samples,
         lamp_step=args.lamp_step,
         out_path=args.out,
+        ambient=args.ambient,
     )
 
 

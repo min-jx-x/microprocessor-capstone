@@ -45,3 +45,34 @@ def test_starts_all_off():
     relays = SimRelays()
     LevelDriver(relays, settle_s=0)
     assert not any(relays.state.values())
+
+
+def test_apply_combo_ignores_level_order(monkeypatch):
+    """실측 후 단계 순서(config.LEVELS)가 바뀌어도 조합으로 켜면 그 조합이 켜져야 한다 (캘리브레이션)."""
+    monkeypatch.setattr(config, "LEVELS", list(reversed(config.LEVELS)))
+    relays = SimRelays()
+    drv = LevelDriver(relays, settle_s=0)
+    for combo in [("low", "low"), ("high", "off"), ("off", "off"), ("high", "high")]:
+        drv.apply_combo(*combo)
+        assert relays.film_states() == combo
+    replay(relays.history)
+    drv.apply(0)                       # 조합으로 켠 뒤에도 단계 전환이 동작해야 함
+    assert relays.film_states() == tuple(config.LEVELS[0])
+
+
+def test_calibrate_measures_each_combo_even_if_levels_reordered(tmp_path, monkeypatch):
+    """lut.json이 이미 있어 단계 순서가 바뀐 상태에서 다시 재도 조합별 조도가 맞게 저장되어야 한다."""
+    import json
+    from pi.devices.sim import combo_transmittance
+    from pi.tools import calibrate
+
+    monkeypatch.setattr(config, "LEVELS", list(reversed(config.LEVELS)))
+    monkeypatch.setattr(config, "CALIBRATION", None)          # 시뮬레이터는 가정 투과율 사용
+    out = tmp_path / "lut.json"
+    calibrate.run_calibration(sim=True, settle_s=0, samples=3, lamp_step=7, out_path=str(out))
+    d = json.loads(out.read_text(encoding="utf-8"))
+    assert 4 <= d["ambient_lux"] <= 6                         # 시뮬레이터 잡광 5 lux
+    for (a, b), lux in zip(d["combos"], d["lux"]):
+        expected = 1000 * combo_transmittance(a, b) + 5
+        assert abs(lux - expected) <= expected * 0.02, (a, b, lux, expected)
+    assert d["lux"] == sorted(d["lux"]) and d["ratio"][-1] == 1.0
