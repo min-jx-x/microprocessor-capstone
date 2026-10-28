@@ -63,3 +63,26 @@ def test_bh1750_close():
     sensor = BH1750Sensor(bus=1, addr=0x23, _bus_obj=mock_bus)
     sensor.close()
     mock_bus.close.assert_called_once()
+
+
+def test_bh1750_recovers_when_init_failed():
+    """부팅 때 센서가 응답하지 않아도 다음 측정에서 다시 연결되어야 한다."""
+    mock_bus = MagicMock()
+    mock_bus.write_byte.side_effect = [OSError("no ack"), None]
+    mock_bus.read_i2c_block_data.return_value = [0x01, 0x2C]
+    sensor = BH1750Sensor(bus=1, addr=0x23, _bus_obj=mock_bus)
+    assert sensor.bus is None
+    assert sensor.read_lux() == pytest.approx(250.0)
+    assert mock_bus.write_byte.call_count == 2
+
+
+def test_bh1750_reinits_after_read_failures():
+    """재시도까지 모두 실패하면 다음 측정 때 측정 모드 명령을 다시 보낸다 (센서 전원이 잠깐 끊긴 경우)."""
+    mock_bus = MagicMock()
+    sensor = BH1750Sensor(bus=1, addr=0x23, _bus_obj=mock_bus)
+    mock_bus.read_i2c_block_data.side_effect = OSError("Bus error")
+    assert sensor.read_lux() is None
+    mock_bus.read_i2c_block_data.side_effect = None
+    mock_bus.read_i2c_block_data.return_value = [0x01, 0x2C]
+    assert sensor.read_lux() == pytest.approx(250.0)
+    assert mock_bus.write_byte.call_count == 2
