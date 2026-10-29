@@ -21,6 +21,7 @@
     <span class="chip" id="period-chip">-</span>
     <span class="clock"><b id="vtime">--:--:--</b><small id="speed"></small></span>
     <span class="conn" id="conn">연결 중</span>
+    <a class="nav" href="/ai">AI 설명</a>
     <button class="theme" id="theme" aria-label="화면 테마 바꾸기">테마: 자동</button>
   </div>
 </header>
@@ -43,7 +44,7 @@
           <span>자동 제어</span><i></i>
         </button>
       </div>
-      <div class="levels" id="levels">
+      <div class="levels" id="levels" style="--n: {{ num_levels }}">
         {% for i in range(num_levels) %}
         <button class="lv" data-level="{{ i }}" style="--shade: {{ (1 - i / (num_levels - 1)) | round(2) }}">{{ i }}</button>
         {% endfor %}
@@ -79,6 +80,7 @@
         </div>
         <button id="burst">직사광</button>
       </div>
+    </div>
   </section>
 
   <!-- 가운데: 기록 -->
@@ -140,8 +142,6 @@
       </div>
       <p class="sub" id="pref-text">직접 바꾼 단계를 선호도에 반영</p>
     </div>
-
-</div>
   </section>
 </main>
 

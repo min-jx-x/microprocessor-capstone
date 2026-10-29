@@ -8,6 +8,8 @@
   - 규칙처럼 "if 변화율 > x 이고 필요 투과율 < y 이면 4단계" 형태라 판단 근거를 설명할 수 있다.
   - 추론은 if문 몇 번이라 Pi에서 1ms도 안 걸린다.
 검증: 날짜(day) 단위로 20%를 떼어 학습에 쓰지 않은 날로 평가한다.
+지표: 정답의 대부분이 '가장 밝은 단계'라 전체 정확도는 과장된다(항상 가장 밝게만 해도 약 89%).
+      그래서 '바꿔야 할 때 정확도'(정답이 현재 단계와 다른 순간만)를 주 지표로 본다. scores() 참고.
 """
 import argparse
 import json
@@ -15,11 +17,43 @@ import os
 from datetime import datetime
 
 import numpy as np
+from sklearn.metrics import balanced_accuracy_score
 from sklearn.tree import DecisionTreeClassifier
 
 from pi import config
 from pi.ai.features import FEATURE_NAMES, HORIZON
 from pi.control.decide import choose_level, load_lut
+
+
+def load_dataset(path: str):
+    """(day, X, y, test). 날짜 단위로 5일에 1일을 시험용으로 뗀다 (같은 날의 앞뒤 초가 학습·시험에 섞이지 않게)."""
+    raw = np.genfromtxt(path, delimiter=",", skip_header=1)
+    day, X, y = raw[:, 0].astype(int), raw[:, 1:-1], raw[:, -1].astype(int)
+    return day, X, y, day % 5 == 0
+
+
+def rule_predict(X, lut):
+    """규칙은 '지금' 입사광(필요 투과율)만 보고 고른다. 같은 정답(미래 기준)과 비교하기 위해 특징에서 다시 계산."""
+    i_t, i_c = FEATURE_NAMES.index("log_tneed"), FEATURE_NAMES.index("cur")
+    return np.array([choose_level(float(np.exp(r[i_t])), int(r[i_c]), lut) for r in X])
+
+
+def scores(pred, y, X) -> dict:
+    """acc     : 전체 정확도
+    balanced: 단계별 정확도의 평균 (적게 나오는 단계도 똑같이 셈)
+    change  : 정답이 현재 단계와 다른 순간(= 단계를 바꿔야 할 때)만 본 정확도  ← 주 지표
+    rising  : 빛이 오르는 중인 순간(최근 변화율 > 5%)만 본 정확도 (선제 차광이 필요한 때)"""
+    cur = X[:, FEATURE_NAMES.index("cur")].astype(int)
+    change = y != cur
+    rising = X[:, FEATURE_NAMES.index("rate1")] > 0.05
+    return {"acc": float((pred == y).mean()),
+            "balanced": float(balanced_accuracy_score(y, pred)),
+            "change": float((pred[change] == y[change]).mean()),
+            "rising": float((pred[rising] == y[rising]).mean())}
+
+
+def make_tree(depth: int = 8) -> DecisionTreeClassifier:
+    return DecisionTreeClassifier(max_depth=depth, min_samples_leaf=20, random_state=0)
 
 
 def export_tree(clf, path: str, meta: dict) -> None:
@@ -46,35 +80,27 @@ def main() -> None:
     ap.add_argument("--depth", type=int, default=8)
     args = ap.parse_args()
 
-    raw = np.genfromtxt(args.data, delimiter=",", skip_header=1)
-    day, X, y = raw[:, 0].astype(int), raw[:, 1:-1], raw[:, -1].astype(int)
-    test = day % 5 == 0                       # 5일에 1일은 시험용
-    clf = DecisionTreeClassifier(max_depth=args.depth, min_samples_leaf=20, random_state=0)
+    day, X, y, test = load_dataset(args.data)
+    clf = make_tree(args.depth)
     clf.fit(X[~test], y[~test])
-    acc = float((clf.predict(X[test]) == y[test]).mean())
-
-    # 비교: 규칙은 '지금' 입사광만 보고 고른다. 같은 정답(미래 기준)에 얼마나 맞나
     lut = load_lut()
-    i_t, i_c = FEATURE_NAMES.index("log_tneed"), FEATURE_NAMES.index("cur")
-    rule_pred = np.array([choose_level(float(np.exp(r[i_t])), int(r[i_c]), lut) for r in X[test]])
-    rule_acc = float((rule_pred == y[test]).mean())
-
-    # 직사광이 오르는 중인 구간만 따로 (선제 차광이 의미 있는 구간)
-    rising = X[test][:, FEATURE_NAMES.index("rate1")] > 0.05
-    acc_r = float((clf.predict(X[test][rising]) == y[test][rising]).mean())
-    rule_r = float((rule_pred[rising] == y[test][rising]).mean())
+    ai = scores(clf.predict(X[test]), y[test], X[test])
+    rule = scores(rule_predict(X[test], lut), y[test], X[test])
 
     meta = {"trained": datetime.now().strftime("%Y-%m-%d %H:%M"), "horizon": HORIZON,
             "depth": args.depth, "leaves": int(clf.get_n_leaves()),
             "train_rows": int((~test).sum()), "test_rows": int(test.sum()),
-            "test_acc": round(acc, 4), "rule_acc": round(rule_acc, 4),
+            "test_acc": round(ai["acc"], 4), "rule_acc": round(rule["acc"], 4),
+            "change_acc": round(ai["change"], 4), "rule_change_acc": round(rule["change"], 4),
             "lut_source": config.LUT_SOURCE, "lut": [round(x, 4) for x in lut],
             "levels": [list(x) for x in config.LEVELS]}
     export_tree(clf, args.out, meta)
 
     print(f"학습 {meta['train_rows']}행 / 시험 {meta['test_rows']}행, 깊이 {args.depth}, 잎 {meta['leaves']}개")
-    print(f"시험 정확도  AI {acc:.1%}  |  규칙 {rule_acc:.1%}   (정답 = {HORIZON}초 뒤 빛에 맞는 단계)")
-    print(f"빛이 오르는 구간({int(rising.sum())}행)  AI {acc_r:.1%}  |  규칙 {rule_r:.1%}")
+    print(f"(정답 = {HORIZON}초 뒤 빛에 맞는 단계)      AI      규칙")
+    for k, name in (("change", "바꿔야 할 때 정확도"), ("rising", "빛이 오르는 중"),
+                    ("balanced", "단계별 평균"), ("acc", "전체 정확도")):
+        print(f"  {name:<14} {ai[k]:>8.1%} {rule[k]:>8.1%}")
     imp = sorted(zip(FEATURE_NAMES, clf.feature_importances_), key=lambda x: -x[1])
     print("특징 중요도:", ", ".join(f"{n} {v:.2f}" for n, v in imp))
     print("저장:", args.out)

@@ -5,6 +5,7 @@
 같은 seed면 바깥 빛·구름·직사광·센서 잡음이 똑같아서 공정하게 비교할 수 있다.
 """
 import random
+import statistics
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from pi import config
@@ -14,6 +15,8 @@ from pi.devices.sim import SimRelays, SimSensor, default_ambient, level_transmit
 from pi.sim.outdoor import OutdoorLight
 
 AMBIENT_LUX = default_ambient()
+BURST_AT = 20          # 직사광 장면에서 직사광이 시작되는 회차
+GLARE = 1.3            # 목표의 1.3배를 넘으면 눈부심
 
 
 def sim_transmittance(level: int) -> float:
@@ -100,3 +103,21 @@ def run_scene(policy, seed: int = 0, hour: float = 12.0, steps: int = 70,
             stab.mark_switched(float(i))
             level = nxt
     return rows
+
+
+def first_darker(rows, b: int = BURST_AT) -> int:
+    """직사광 시작(b) 뒤 처음으로 더 어두운 단계로 바꿀 때까지 걸린 회차(초)."""
+    lv0 = rows[b]["level"]
+    return next((k - b for k in range(b + 1, len(rows)) if rows[k]["level"] < lv0), len(rows) - b)
+
+
+def glare_secs(rows, b: int = BURST_AT) -> int:
+    """직사광 시작 뒤 실내 조도가 목표의 GLARE배를 넘은 회차(초) 수."""
+    return sum(r["lux"] > r["target"] * GLARE for r in rows[b:])
+
+
+def burst_stats(policy, n: int = 40) -> Dict[str, float]:
+    """직사광 장면 n번(seed 0 ~ n-1) 평균. delay: 어둡게 바꿀 때까지(초), glare: 눈부심 시간(초)"""
+    scenes = [run_scene(policy, seed=s, burst_at=BURST_AT) for s in range(n)]
+    return {"delay": statistics.mean(first_darker(r) for r in scenes),
+            "glare": statistics.mean(glare_secs(r) for r in scenes)}

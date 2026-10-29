@@ -67,8 +67,8 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .seg button:last-child { border-radius: 0 10px 10px 0; }
 .seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
 
-/* 단계 버튼: 아래 색 띠가 필름 투명도 (0 어두움 → 5 밝음) */
-.levels { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+/* 단계 버튼: 아래 색 띠가 필름 투명도 (0 어두움 → 큰 번호일수록 밝음). 칸 수 --n = 단계 수 */
+.levels { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 6px; }
 .lv { height: 52px; font-size: 20px; font-weight: 700; color: var(--accent); border: 2px solid var(--accent);
   border-radius: 10px; background: var(--panel); position: relative; overflow: hidden; padding: 0; }
 .lv::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 7px;
@@ -147,3 +147,87 @@ select, .add input { font: inherit; padding: 6px 8px; border: 1.5px solid var(--
   .lv { height: 46px; }
 }
 .big.wake-num { font-size: clamp(34px, 3.4vw, 52px); }
+
+/* 헤더 링크 (대시보드 <-> AI 설명) */
+.nav { color: #fff; text-decoration: none; font-size: 13px; font-weight: 700; border: 1.5px solid rgba(255,255,255,.35);
+  border-radius: 999px; padding: 4px 12px; white-space: nowrap; }
+.nav:hover { border-color: #fff; }
+
+/* AI 설명 페이지: 위에서 아래로 읽는 한 열 */
+body.doc { height: auto; }
+.doc-main { width: 100%; max-width: 1120px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.doc h2 { margin: 0; font-size: 18px; }
+.doc .card { gap: 10px; min-width: 0; }   /* 넓은 표가 카드를 화면 밖으로 밀지 않게 (표는 안에서 가로 스크롤) */
+.doc code { background: var(--soft); border-radius: 6px; padding: 1px 6px; font-size: 12.5px; }
+.note { margin: 0; background: var(--soft); border-radius: 12px; padding: 10px 12px; font-size: 13.5px; line-height: 1.6; }
+.points { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; line-height: 1.6; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+
+/* 지금 판단 */
+.live { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; }
+.live[hidden] { display: none; }
+.inputs { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; font-size: 13.5px; }
+.inputs dt { color: var(--muted); }
+.inputs dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.path { margin: 8px 0 0; padding-left: 22px; font-size: 13px; display: flex; flex-direction: column; gap: 3px; }
+.path b { font-variant-numeric: tabular-nums; }
+.yes, .no { font-style: normal; font-size: 11px; font-weight: 700; border-radius: 6px; padding: 0 6px; margin-left: 4px; }
+.yes { background: var(--soft); color: var(--accent); }
+.no { background: var(--band); color: var(--muted); }
+.leaf { margin-top: 6px; font-weight: 700; color: var(--accent); font-size: 16px; }
+.steps { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.steps div { background: var(--soft); border-radius: 10px; padding: 6px 10px; }
+.steps .k { display: block; font-size: 11px; color: var(--muted); }
+.steps b { font-size: 18px; margin-right: 8px; }
+.steps small { color: var(--muted); font-size: 12px; }
+.steps .final { background: var(--accent); }
+.steps .final .k, .steps .final small, .steps .final b { color: #fff; }
+
+/* 구조 흐름: 넓으면 가로, 좁으면 세로 */
+.flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 22px; align-items: start; padding: 4px 0 6px; }
+.flow .node { position: relative; border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--panel);
+  display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--muted); min-height: 70px; }
+.flow .node b { color: var(--ink); font-size: 14px; }
+.flow .node em { font-style: normal; font-weight: 700; color: var(--ink); }
+.flow .node:not(:last-child)::after { content: "\2192"; position: absolute; right: -18px; top: 22px; color: var(--accent); font-weight: 700; }
+.flow .brain { border-color: var(--accent); border-width: 2px; }
+.flow .side { margin-top: 8px; border-top: 1.5px dashed var(--line); padding-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+.flow .side b { font-size: 13px; color: var(--target); }
+.roles { border-collapse: collapse; font-size: 13.5px; }
+.roles th { text-align: left; white-space: nowrap; color: var(--accent); padding: 6px 14px 6px 0; vertical-align: top; }
+.roles td { padding: 6px 0; line-height: 1.55; border-bottom: 1px solid var(--line); }
+
+/* 표와 그래프 */
+.table-wrap { overflow-x: auto; }
+table.data { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.data th, table.data td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.data td:nth-child(n+2):nth-child(-n+5), table.data th:nth-child(n+2):nth-child(-n+5) { text-align: right; font-variant-numeric: tabular-nums; }
+table.data tr.cur td { font-weight: 700; color: var(--accent); }
+table.data tr.base td { color: var(--muted); }
+.chart-wide svg, .chart-mid svg { display: block; width: 100%; }
+.bl { fill: var(--ink); font-size: 12.5px; }
+.bv { fill: var(--ink); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bv.sm { font-size: 10.5px; }
+.b-cur { fill: var(--accent); }
+.b-other { fill: var(--out); }
+.b-base { fill: var(--line); }
+.b-warn { fill: var(--target); }
+.t-cur { fill: var(--accent); }
+.t-warn { fill: var(--target); }
+.dot { fill: var(--accent); }
+.tick.dim { opacity: .7; }
+
+/* 트리 */
+.tree { font-size: 13px; overflow-x: auto; }
+.tree ul { list-style: none; margin: 4px 0 0 10px; padding-left: 14px; border-left: 1.5px solid var(--line); }
+.tree li { margin: 4px 0; }
+.tree .tq { font-weight: 700; }
+.tree .tl { font-weight: 700; color: var(--accent); margin-left: 4px; }
+.tree .tmore { color: var(--muted); margin-left: 4px; }
+
+@media (max-width: 900px) {
+  .live, .two { grid-template-columns: minmax(0, 1fr); }
+  .flow { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .flow .node { min-height: 0; }
+  .flow .node:not(:last-child)::after { content: "\2193"; right: auto; left: 50%; top: auto; bottom: -18px; }
+}

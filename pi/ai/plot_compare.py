@@ -8,7 +8,6 @@
 """
 import argparse
 import os
-import statistics
 
 import matplotlib
 
@@ -18,13 +17,12 @@ from matplotlib import font_manager  # noqa: E402
 
 from pi import config  # noqa: E402
 from pi.ai.evaluate import compare  # noqa: E402
-from pi.ai.offline import run_scene  # noqa: E402
+from pi.ai.offline import BURST_AT, burst_stats, first_darker, run_scene  # noqa: E402
 from pi.ai.policy import AIPolicy  # noqa: E402
 from pi.control.decide import RulePolicy, load_lut  # noqa: E402
 
 RULE, AI = "#eb6834", "#2a78d6"        # 규칙 주황, AI 파랑 (색약에서도 구분되는 조합)
 INK, MUTED, GRID = "#1b1b1a", "#6b6a66", "#e4e3df"
-BURST_AT = 20
 
 
 def setup_font() -> None:
@@ -42,32 +40,13 @@ def setup_font() -> None:
                          "axes.spines.top": False, "axes.spines.right": False})
 
 
-def first_darker(rows) -> int:
-    lv0 = rows[BURST_AT]["level"]
-    return next((k - BURST_AT for k in range(BURST_AT + 1, len(rows))
-                 if rows[k]["level"] < lv0), len(rows) - BURST_AT)
-
-
-def first_darker_at(rows, b: int) -> int:
-    lv0 = rows[b]["level"]
-    return next((k - b for k in range(b + 1, len(rows)) if rows[k]["level"] < lv0), len(rows) - b)
-
-
-def glare_secs(rows) -> int:
-    return sum(r["lux"] > r["target"] * 1.3 for r in rows[BURST_AT:])
-
-
 def plot_burst(out: str, seed: int, n_avg: int) -> None:
     lut = load_lut()
     rule, ai = RulePolicy(lut), AIPolicy(lut)
     r, a = run_scene(rule, seed=seed, burst_at=BURST_AT), run_scene(ai, seed=seed, burst_at=BURST_AT)
     # 대표 장면 하나만 보여주면 '고른 결과'일 수 있으므로 n_avg번 평균도 같이 적는다
-    stats = {"dr": [], "da": [], "gr": [], "ga": []}
-    for s in range(n_avg):
-        rr, aa = run_scene(rule, seed=s, burst_at=BURST_AT), run_scene(ai, seed=s, burst_at=BURST_AT)
-        stats["dr"].append(first_darker(rr)); stats["da"].append(first_darker(aa))
-        stats["gr"].append(glare_secs(rr)); stats["ga"].append(glare_secs(aa))
-    m = {k: statistics.mean(v) for k, v in stats.items()}
+    sr, sa = burst_stats(rule, n_avg), burst_stats(ai, n_avg)
+    m = {"dr": sr["delay"], "da": sa["delay"], "gr": sr["glare"], "ga": sa["glare"]}
 
     skip = 5                       # 시작 직후 0단계에서 올라가는 몇 초는 잘라낸다
     r, a = r[skip:], a[skip:]
@@ -101,7 +80,7 @@ def plot_burst(out: str, seed: int, n_avg: int) -> None:
     ax2.set_yticks(range(0, top + 1))
     ax2.set_ylim(-0.3, top + 0.3)
     ax2.set_xlabel("직사광 시작 후 시간 (초)")
-    dr, da = first_darker_at(r, b0), first_darker_at(a, b0)
+    dr, da = first_darker(r, b0), first_darker(a, b0)
     lv0 = r[b0]["level"]
     # AI 글자는 선 왼쪽, 규칙 글자는 선 오른쪽에 두어 겹치지 않게
     for d, c, name, tx, ha in ((da, AI, "AI", -0.8, "right"), (dr, RULE, "규칙", dr + 0.4, "left")):

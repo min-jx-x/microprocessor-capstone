@@ -15,6 +15,9 @@ from typing import List, Sequence
 HISTORY = 4          # 특징을 만들 때 필요한 최근 입사광 개수
 HORIZON = 4          # 몇 회 뒤의 빛을 보고 정답을 정할지 (1회 = 1초)
 FEATURE_NAMES = ["log_tneed", "rate1", "rate2", "rate3", "cur", "target"]
+# 화면(AI 설명 페이지)에 보이는 이름
+FEATURE_LABELS = {"log_tneed": "필요 투과율", "rate1": "직전 1회 빛 변화", "rate2": "1~2회 전 빛 변화",
+                  "rate3": "2~3회 전 빛 변화", "cur": "현재 단계", "target": "목표 조도"}
 
 
 def _rate(a: float, b: float) -> float:
@@ -29,3 +32,14 @@ def make_features(target: float, incs: Sequence[float], cur: int) -> List[float]
     i3, i2, i1, i0 = incs
     return [math.log(target / max(i0, 1.0)), _rate(i0, i1), _rate(i1, i2), _rate(i2, i3),
             float(cur), float(target)]
+
+
+def show(name: str, v: float) -> str:
+    """특징 값이나 트리 기준값을 사람이 읽는 글자로. 필요 투과율은 log를 풀고, 변화율은 %로."""
+    if name == "log_tneed":
+        return f"{math.exp(v):.2f}"
+    if name.startswith("rate"):
+        return f"{v * 100:+.1f}%"
+    if name == "target":
+        return f"{v:.0f} lux"
+    return f"{v:g}"

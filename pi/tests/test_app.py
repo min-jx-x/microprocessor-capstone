@@ -85,3 +85,29 @@ def test_log_is_batched_and_pruned(tmp_path):
     store.last_prune = 0
     store.close()
     assert count() == 2                                   # 하루 지난 기록은 지움
+
+
+def test_ai_page_and_explain(client):
+    assert client.get("/ai").status_code == 200
+    assert 'href="/ai"' in client.get("/").get_data(as_text=True)     # 대시보드에서 가는 링크
+    e = client.get("/api/ai/explain").get_json()
+    for k in ("mode", "brain", "level", "answers", "rule", "stab"):
+        assert k in e
+    assert e["stab"]["need"] >= 1
+
+
+def test_ai_report(client, monkeypatch, tmp_path):
+    import json
+    import os
+    from pi import config
+    if os.path.exists(config.AI_REPORT_PATH):
+        r = client.get("/api/ai/report").get_json()
+        assert r["levels"] == config.NUM_LEVELS
+        assert any(m.get("current") for m in r["models"])
+        assert {"depth", "ablation", "importance", "horizon", "horizon_rule"} <= set(r)
+    monkeypatch.setattr(config, "AI_REPORT_PATH", str(tmp_path / "none.json"))
+    assert client.get("/api/ai/report").status_code == 404
+    p = tmp_path / "r.json"
+    p.write_text(json.dumps({"levels": 3}), encoding="utf-8")
+    monkeypatch.setattr(config, "AI_REPORT_PATH", str(p))
+    assert client.get("/api/ai/report").get_json() == {"levels": 3}
