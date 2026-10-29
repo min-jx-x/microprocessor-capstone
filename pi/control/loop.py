@@ -265,13 +265,6 @@ class Controller:
                 "ai_meta": self.ai_meta,
             }
 
-    def ai_model(self) -> dict:
-        """웹 'AI 설명' 페이지용: 모델 정보와 트리 위쪽 3단."""
-        ai = self.policies.get("ai")
-        if ai is None:
-            return {}
-        return {"meta": self.ai_meta, "top": ai.top(3)}
-
     def snapshot(self) -> dict:
         with self.lock:
             a, b = config.LEVELS[self.level]

@@ -89,19 +89,3 @@ def test_explain_none_at_night():
     ai.decide(800, 23.0, 0, 7.5)
     assert ai.explain() is None
 
-
-@needs_model
-def test_tree_top_levels_in_range():
-    from pi.ai.policy import AIPolicy
-    top = AIPolicy(list(config.LUT_T)).top(3)
-
-    def walk(n, d):
-        if "level" in n:
-            assert 0 <= n["level"] < config.NUM_LEVELS
-        elif "levels" in n:
-            assert d == 0 and all(0 <= x < config.NUM_LEVELS for x in n["levels"])
-        else:
-            assert n["label"] and n["threshold"]
-            walk(n["yes"], d - 1)
-            walk(n["no"], d - 1)
-    walk(top, 3)

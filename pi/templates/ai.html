@@ -14,7 +14,7 @@
 <header class="hd">
   <div class="hd-title">
     <h1>라이트큐</h1>
-    <p>AI는 무엇을 보고, 왜 이렇게 판단하나</p>
+    <p>AI 설명</p>
   </div>
   <div class="hd-right">
     <span class="chip" id="period-chip">-</span>
@@ -23,121 +23,83 @@
 </header>
 
 <main class="doc-main">
-  <!-- 1. 실시간 판단 -->
+  <!-- 1. 지금 판단: 큰 숫자 3개 + 입력, 트리 질문은 접어 둠 -->
   <section class="card">
     <div class="row">
       <h2>지금 AI의 판단</h2>
       <span class="sub" id="live-status">-</span>
     </div>
-    <p class="sub" id="live-note" hidden></p>
-    <div class="live" id="live">
-      <div>
-        <div class="lb">입력 (센서 → 특징 6개)</div>
-        <dl class="inputs" id="inputs"></dl>
+    <p class="note" id="live-note" hidden></p>
+    <div id="live">
+      <div class="stats">
+        <div class="stat"><span>규칙 · 지금 빛</span><b id="ans-rule">-</b><small id="rule-why"></small></div>
+        <div class="stat"><span>AI · 4초 앞 예측</span><b id="ans-ai">-</b><small id="ai-why"></small></div>
+        <div class="stat final"><span>실제 단계</span><b id="applied">-</b><small id="applied-why"></small></div>
       </div>
-      <div>
-        <div class="lb">결정트리가 지나온 질문</div>
+      <div class="chips" id="inputs"></div>
+      <details>
+        <summary>결정트리가 거친 질문 보기</summary>
         <ol class="path" id="path"></ol>
-        <div class="leaf" id="leaf">-</div>
-      </div>
-      <div>
-        <div class="lb">최종 결정</div>
-        <div class="steps">
-          <div><span class="k">규칙 (지금 빛만)</span><b id="ans-rule">-</b><small id="rule-why"></small></div>
-          <div><span class="k">AI (4초 앞 예측)</span><b id="ans-ai">-</b><small id="ai-why"></small></div>
-          <div><span class="k">안정화</span><b id="stab">-</b><small id="stab-why"></small></div>
-          <div class="final"><span class="k">실제 단계</span><b id="applied">-</b><small id="applied-why"></small></div>
-        </div>
-      </div>
+      </details>
     </div>
   </section>
 
-  <!-- 2. 구조 -->
+  <!-- 2. 흐름 -->
   <section class="card">
-    <h2>구조: 누가 무엇을 정하나</h2>
+    <h2>어떻게 동작하나</h2>
     <div class="flow" aria-label="제어 흐름">
-      <div class="node"><b>조도 센서</b><span>BH1750, 1초마다</span></div>
-      <div class="node"><b>입사광 추정</b><span>실내 조도 ÷ 현재 단계 투과율</span></div>
-      <div class="node brain"><b>판단</b><span>규칙 또는 AI 결정트리<br>→ 다음 단계 후보</span>
-        <div class="side"><b>목표 조도</b><span>시간표 × 개인 선호 보정</span></div>
-      </div>
-      <div class="node"><b>안정화</b><span>같은 방향 <em data-r="stable_count">3</em>번 연속 + <em data-r="min_interval">5</em>초 간격</span></div>
-      <div class="node"><b>안전 전환</b><span>전원 끄기 → 전압 선택 → 켜기</span></div>
-      <div class="node"><b>릴레이 · 필름</b><span>0 ~ <em data-r="top_level">2</em>단계</span></div>
+      <div class="node"><b>센서</b><span>1초마다 실내 조도</span></div>
+      <div class="node"><b>바깥 빛 추정</b><span>실내 조도 ÷ 필름 투과율</span></div>
+      <div class="node brain"><b>판단</b><span>규칙 또는 AI</span><em class="side">목표 = 시간표 × 내 선호</em></div>
+      <div class="node"><b>안정화</b><span><em data-r="stable_count">3</em>번 연속 같아야 바꿈</span></div>
+      <div class="node"><b>안전 전환</b><span>전원 끄고 바꾸고 켜기</span></div>
+      <div class="node"><b>필름</b><span>0 ~ <em data-r="top_level">2</em>단계</span></div>
     </div>
-    <table class="roles">
-      <tr><th>규칙</th><td>필요 투과율에 가장 가까운 단계. AI의 <b>기준선</b>이자, 모델 파일이 없거나 투과율 실측값이 바뀌어 다시 학습하기 전에는 자동으로 대신 쓰는 <b>안전한 대체 수단</b></td></tr>
-      <tr><th>AI 결정트리</th><td><b>언제, 얼마나 미리</b> 바꿀지. 빛이 오르는 속도를 보고 4초 뒤 빛에 맞는 단계를 고른다</td></tr>
-      <tr><th>개인 선호 보정</th><td><b>목표를 얼마로</b> 할지. 직접 바꾼 밝기를 배워 사용자별 목표를 ±30% 안에서 옮긴다. 모델과 따로라 사람이 바뀌어도 다시 학습할 필요가 없다</td></tr>
-      <tr><th>안정화</th><td><b>깜빡임 방지</b>. 판단이 한 번 흔들려도 바로 바꾸지 않는다</td></tr>
-      <tr><th>안전 전환</th><td><b>하드웨어 보호</b>. 판단 방식과 상관없이 모든 전환이 같은 순서를 지킨다</td></tr>
-    </table>
-    <p class="note">판단이 흔들려 필름이 깜빡이지 않도록, 안정화는 같은 판단이 <em data-r="stable_count">3</em>번 이어져야 단계를 바꿉니다. 그만큼 반응이 늦어지는데, AI는 <b>4초 뒤</b> 빛을 미리 보고 판단해서 이 지연을 메웁니다. 그래서 안정화와 예측 시간은 따로 정한 값이 아니라 서로 맞춘 값입니다. 아래 예측 시간 실험을 참고하세요.</p>
+    <p class="note">안정화로 <b>3초</b> 늦어지는 만큼, AI가 <b>4초 앞</b>을 미리 봅니다.</p>
   </section>
 
   <!-- 3. 모델 비교 -->
   <section class="card">
     <h2>왜 결정트리인가</h2>
-    <p class="sub">같은 학습 데이터, 같은 시험 날짜(학습에 안 쓴 날)로 비교했습니다. 막대 = <b>바꿔야 할 때 정확도</b> (정답이 지금 단계와 다른 순간만 본 정확도)</p>
-    <div class="chart-wide"><svg id="models-chart" role="img" aria-label="모델별 바꿔야 할 때 정확도"></svg></div>
-    <div class="table-wrap"><table class="data" id="models-table"></table></div>
-    <ul class="points">
-      <li>결정트리는 더 복잡한 모델(랜덤포레스트, 부스팅, 신경망)과 정확도 차이가 <b id="gap">-</b> 안입니다.</li>
-      <li>대신 Pi에는 <b id="tree-kb">-</b>짜리 JSON 파일 하나만 올리면 되고(scikit-learn 불필요), 판단 근거를 위의 "지나온 질문"처럼 그대로 보여 줄 수 있습니다.</li>
-      <li>지표를 고른 이유: 정답의 <b id="top-share">-</b>가 "가장 밝은 단계"라, <b>항상 가장 밝게</b>만 해도 전체 정확도가 <b id="top-acc">-</b>입니다. 그래서 전체 정확도 대신 단계를 바꿔야 하는 순간을 봅니다.</li>
-    </ul>
+    <div class="stats">
+      <div class="stat"><span>결정트리 정확도</span><b id="s-tree">-</b><small id="s-tree-sub"></small></div>
+      <div class="stat"><span>더 복잡한 모델과 차이</span><b id="s-gap">-</b><small id="s-gap-sub"></small></div>
+      <div class="stat"><span>Pi에 올리는 파일</span><b id="s-kb">-</b><small>scikit-learn 없이 if문으로 실행</small></div>
+    </div>
+    <div class="chart-wide"><svg id="models-chart" role="img" aria-label="모델별 정확도"></svg></div>
+    <p class="hint" id="metric-hint">정확도 = 단계를 바꿔야 하는 순간에 맞힌 비율</p>
+    <details>
+      <summary>자세한 표</summary>
+      <div class="table-wrap"><table class="data" id="models-table"></table></div>
+    </details>
   </section>
 
   <!-- 4. 특징 -->
   <section class="card">
-    <h2>AI는 무엇을 보고 판단하나</h2>
-    <div class="two">
-      <div>
-        <div class="lb">특징 중요도 (트리가 질문에 쓴 비중)</div>
-        <div class="chart-mid"><svg id="imp-chart" role="img" aria-label="특징 중요도"></svg></div>
-      </div>
-      <div>
-        <div class="lb">특징을 빼고 다시 학습하면 (바꿔야 할 때 정확도)</div>
-        <div class="chart-mid"><svg id="abl-chart" role="img" aria-label="특징을 뺐을 때 정확도"></svg></div>
-      </div>
+    <h2>AI는 무엇을 보나</h2>
+    <div class="stats">
+      <div class="stat"><span>빛 변화율을 빼면</span><b id="s-rate">-</b><small>빛이 오르는 속도 = AI가 미리 어둡게 하는 근거</small></div>
+      <div class="stat"><span>필요 투과율을 빼면</span><b id="s-tneed">-</b><small>가장 중요한 입력 (규칙도 이것만 봄)</small></div>
     </div>
-    <ul class="points" id="feature-points"></ul>
+    <div class="chart-mid"><svg id="abl-chart" role="img" aria-label="입력을 하나씩 뺐을 때 정확도"></svg></div>
   </section>
 
-  <!-- 5. 깊이와 예측 시간 -->
+  <!-- 5. 깊이·예측 시간 -->
   <section class="card">
     <h2>왜 깊이 <span data-r="depth">8</span>, 왜 <span data-r="horizon">4</span>초 앞인가</h2>
     <div class="two">
       <div>
-        <div class="lb">트리 깊이 (바꿔야 할 때 정확도, 시험 날짜)</div>
+        <p class="take" id="depth-take">-</p>
         <div class="chart-mid"><svg id="depth-chart" role="img" aria-label="트리 깊이별 정확도"></svg></div>
-        <p class="sub" id="depth-text"></p>
       </div>
       <div>
-        <div class="lb">예측 시간 (직사광 장면 평균, 안정화 포함 실제 제어)</div>
+        <p class="take" id="hz-take">-</p>
         <div class="chart-mid"><svg id="hz-chart" role="img" aria-label="예측 시간별 반응과 눈부심"></svg></div>
-        <p class="sub" id="hz-text"></p>
       </div>
     </div>
   </section>
 
-  <!-- 6. 트리 -->
-  <section class="card">
-    <h2>결정트리 위쪽 3단</h2>
-    <p class="sub" id="tree-meta">-</p>
-    <div class="tree" id="tree"></div>
-  </section>
-
-  <!-- 7. 한계 -->
-  <section class="card">
-    <h2>한계와 다음 단계</h2>
-    <ul class="points">
-      <li>학습과 평가는 시뮬레이션입니다. 바깥 빛은 기상청 일사량 곡선에 구름·직사광을 합성했고, 필름 투과율은 아직 <b id="lut-src">가정값</b>입니다.</li>
-      <li>필름을 조립한 뒤 단계별 조도를 재면(<code>python -m pi.tools.calibrate</code>) 노트북에서 <code>python -m pi.ai.retrain</code> 한 번으로 데이터 생성 → 학습 → 이 페이지의 실험까지 다시 돕니다. 다시 학습하기 전에는 자동으로 규칙을 씁니다.</li>
-      <li>3단계는 가장 밝은 상태가 어두워(가정 투과율 기준) 주간 목표 500 lux에 자주 못 미칩니다. 실측 후 목표 조도를 실제 밝기 범위에 맞춥니다.</li>
-    </ul>
-    <p class="sub" id="report-meta"></p>
-  </section>
+  <p class="foot-note" id="report-meta"></p>
 </main>
 
 <script src="{{ url_for('static', filename='ai.js') }}"></script>

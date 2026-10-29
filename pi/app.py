@@ -80,10 +80,6 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False) -> Fl
     def ai_explain():
         return jsonify(ctrl.explain())
 
-    @app.get("/api/ai/model")
-    def ai_model():
-        return jsonify(ctrl.ai_model())
-
     @app.get("/api/ai/report")
     def ai_report():
         """모델 선택 근거 실험 결과. 노트북에서 python -m pi.ai.compare_models로 만든 파일을 그대로 보낸다."""

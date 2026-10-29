@@ -53,15 +53,12 @@ class AIPolicy:
         # 다른 단계 수로 학습된 모델이 범위 밖 단계를 내도 가장 밝은 단계로 묶는다 (재학습 전 안전장치)
         return min(int(self.m["classes"][self.m["leaf_class"][node]]), config.NUM_LEVELS - 1)
 
-    def _cond(self, node: int, x: Optional[List[float]] = None) -> Dict:
-        """노드의 질문 하나. x가 있으면 그 값과 예/아니오도 같이."""
+    def _cond(self, node: int, x: List[float]) -> Dict:
+        """노드의 질문 하나와 x의 값, 예/아니오."""
         name = self.m["features"][self.m["feature"][node]]
-        th = self.m["threshold"][node]
-        c = {"feature": name, "label": FEATURE_LABELS.get(name, name), "threshold": show(name, th)}
-        if x is not None:
-            v = x[self.m["feature"][node]]
-            c.update(value=show(name, v), yes=v <= th)
-        return c
+        th, v = self.m["threshold"][node], x[self.m["feature"][node]]
+        return {"feature": name, "label": FEATURE_LABELS.get(name, name), "threshold": show(name, th),
+                "value": show(name, v), "yes": v <= th}
 
     def path(self, x: List[float]) -> Tuple[List[Dict], int]:
         """x가 트리를 따라 내려간 길과 도착한 단계. predict와 같은 길이다 (화면에서 '왜 이 단계인지' 보여 줄 때)."""
@@ -82,25 +79,6 @@ class AIPolicy:
                            for n, v in zip(names, self.last_x)],
                 "path": steps, "level": level}
 
-    def top(self, depth: int = 3, node: int = 0) -> Dict:
-        """트리 위쪽 depth단 (화면 표시용). 더 깊은 곳은 그 아래에서 나올 수 있는 단계만 적는다."""
-        m = self.m
-        if m["left"][node] == -1:
-            return {"level": self._leaf_level(node)}
-        if depth == 0:
-            return {"levels": sorted(self._levels_under(node))}
-        return dict(self._cond(node), yes=self.top(depth - 1, m["left"][node]),
-                    no=self.top(depth - 1, m["right"][node]))
-
-    def _levels_under(self, node: int) -> set:
-        m, out, stack = self.m, set(), [node]
-        while stack:
-            n = stack.pop()
-            if m["left"][n] == -1:
-                out.add(self._leaf_level(n))
-            else:
-                stack += [m["left"][n], m["right"][n]]
-        return out
 
     def decide(self, lux: float, hour: float, cur: int, wake_hour: float,
                scale: Optional[Dict[str, float]] = None) -> Tuple[int, Dict]:
