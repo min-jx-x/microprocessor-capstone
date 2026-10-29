@@ -1,5 +1,5 @@
 """docs 사양에 맞춘 하드웨어/알고리즘 정량지표 계산 스크립트.
-pi/config.py 기준 (6단계 제어, 시간대별 목표 조도).
+pi/config.py 기준 (단계 수는 LIGHTQ_LEVELS를 따름, 기본 3단계. 시간대별 목표 조도).
 
 정량지표 항목:
     1. 정확도 (Accuracy): 도달 조도가 해당 시간대(또는 단계) 목표 조도 ±tolerance% 범위 내에 들어온 비율
@@ -39,9 +39,10 @@ except ImportError:
 
 def get_default_config():
     """pi/config.py 임포트 실패 시 사용할 기본 규격."""
+    six = os.environ.get("LIGHTQ_LEVELS", "").strip() == "6"   # pi/calib.py와 같은 규칙 (기본 3)
     return {
-        "NUM_LEVELS": 6,
-        "LUT_T": [0.06, 0.17, 0.36, 0.47, 0.70, 1.00],
+        "NUM_LEVELS": 6 if six else 3,
+        "LUT_T": [0.14, 0.21, 0.32, 0.38, 0.56, 1.00] if six else [0.44, 0.67, 1.00],
         "LUT_SOURCE": "default",
         "DEFAULT_WAKE_TIME": "07:30",
         "WAKE_END_HOUR": 9.0,
@@ -83,7 +84,7 @@ def resolve_target_lux(df: pd.DataFrame, target_lux_map: dict = None) -> pd.Seri
     
     1. 사용자가 명시한 target_lux_map 이 있으면 우선 적용
     2. CSV에 hour 컬럼이 있으면 pi/config.py 시간대별 목표 적용
-    3. 그 외의 경우 6단계 기본 레벨 매핑 적용
+    3. 그 외의 경우 단계별 기본 목표 매핑 적용 (3단계: 0 차광, 1 아침, 2 주간)
     """
     if target_lux_map is not None:
         return df["level"].map(target_lux_map)
@@ -93,8 +94,12 @@ def resolve_target_lux(df: pd.DataFrame, target_lux_map: dict = None) -> pd.Seri
         hours = df["hour"].dropna().astype(float)
         return hours.apply(get_target_lux_for_hour)
 
-    # 레벨 기반 fallback (6단계 기준)
-    fallback_map = {0: 5.0, 1: 50.0, 2: 150.0, 3: 300.0, 4: 500.0, 5: 800.0}
+    # 레벨 기반 fallback
+    num_levels = int(config.NUM_LEVELS) if config is not None else get_default_config()["NUM_LEVELS"]
+    if num_levels == 6:
+        fallback_map = {0: 5.0, 1: 50.0, 2: 150.0, 3: 300.0, 4: 500.0, 5: 800.0}
+    else:
+        fallback_map = {0: 5.0, 1: 200.0, 2: 500.0}
     return df["level"].map(fallback_map)
 
 
@@ -107,7 +112,7 @@ def calculate_metrics(
     max_latency_window_ms: float = 15000.0,
     verbose: bool = True,
 ):
-    """로그 CSV 분석 및 정량지표 자동 계산 (pi/config.py 6단계 기준).
+    """로그 CSV 분석 및 정량지표 자동 계산 (pi/config.py 기준).
 
     :param csv_path: 로그 CSV 경로
     :param target_lux_map: level별 목표 조도 매핑 dict (None일 경우 config 시간대별 목표 적용)
@@ -222,7 +227,7 @@ def calculate_metrics(
         print("                 하드웨어 성능 평가 결과              ")
         print("=" * 60)
         print(f"분석 파일 경로     : {csv_path}")
-        print(f"설정 기준          : pi/config.py (6단계)")
+        print(f"설정 기준          : pi/config.py ({num_levels}단계)")
         print(f"LUT 출처           : {lut_source}")
         print(f"제어 단계 기준     : {num_levels}단계 (0 ~ {num_levels - 1})")
         print(f"투과율 LUT (ratio) : {lut_t}")
