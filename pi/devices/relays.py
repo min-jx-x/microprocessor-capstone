@@ -18,7 +18,7 @@ class GpioRelays:
             active_low = config.RELAY_ACTIVE_LOW
 
         self.pins = dict(pins)
-        self.active_low = dict(active_low)   # 릴레이별 저레벨 트리거 여부 (PA·PB만 True)
+        self.active_low = dict(active_low)   # 릴레이별 저레벨 트리거 여부 (config.RELAY_ACTIVE_LOW, 극성은 여기서 바꾸지 않음)
         self.devices: dict[str, OutputDevice] = {}
 
         for name, pin in self.pins.items():

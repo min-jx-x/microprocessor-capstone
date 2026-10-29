@@ -51,13 +51,12 @@ GPIO 번호는 BCM 기준이고, 괄호 안은 40핀 헤더의 물리 핀 번호
 `deploy/setup_pi.sh`가 `/boot/firmware/config.txt`에 아래 줄을 넣어 부팅 직후부터 릴레이 핀을 "꺼짐" 레벨로 고정합니다.
 
 ```
-gpio=27,23=op,dh  # LightQ relay off at boot
-gpio=17,22=op,dl  # LightQ relay off at boot
+gpio=17,27,22,23=op,dl  # LightQ relay off at boot
 ```
 
-- `dh` = HIGH 출력(저레벨 트리거 모듈에서 꺼짐), `dl` = LOW 출력(고레벨 트리거 모듈에서 꺼짐). 릴레이 시험 결과 PA·PB만 저레벨 트리거라 줄이 두 개입니다. `pi/config.py`의 `RELAY_ACTIVE_LOW`(릴레이별)를 따라 자동으로 정해집니다.
+- `dh` = HIGH 출력(저레벨 트리거 모듈에서 꺼짐), `dl` = LOW 출력(고레벨 트리거 모듈에서 꺼짐). 10/29 재시험 결과 릴레이 4개 모두 고레벨 트리거라 `dl` 한 줄입니다. 타입이 섞이면 줄이 두 개가 됩니다. `pi/config.py`의 `RELAY_ACTIVE_LOW`(릴레이별)를 따라 자동으로 정해집니다.
 - 핀 번호나 `RELAY_ACTIVE_LOW`를 바꾸면 `bash deploy/setup_pi.sh`를 다시 실행하고 재부팅합니다.
-- `gpio=17,27,22,23=op,dl` 한 줄만 있으면 예전 스크립트로 만든 것입니다. 부팅 중 PA·PB가 켜지므로 스크립트를 다시 실행합니다.
+- `gpio=27,23=op,dh` 줄이 남아 있으면 이전 설정입니다. 고레벨 모듈에서는 부팅 중 PA·PB가 켜지므로 스크립트를 다시 실행합니다.
 - 확인: 220V 없이 재부팅하면서 릴레이 LED가 한 번도 켜지지 않는지 봅니다.
 
 ## 시각
