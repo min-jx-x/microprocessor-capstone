@@ -16,6 +16,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib import font_manager  # noqa: E402
 
+from pi import config  # noqa: E402
 from pi.ai.evaluate import compare  # noqa: E402
 from pi.ai.offline import run_scene  # noqa: E402
 from pi.ai.policy import AIPolicy  # noqa: E402
@@ -96,14 +97,15 @@ def plot_burst(out: str, seed: int, n_avg: int) -> None:
     ax2.step(t, [x["level"] for x in r], where="post", color=RULE, lw=2)
     ax2.step(t, [x["level"] for x in a], where="post", color=AI, lw=2)
     ax2.set_ylabel("단계")
-    ax2.set_yticks(range(0, 6))
-    ax2.set_ylim(-0.3, 5.3)
+    top = config.NUM_LEVELS - 1        # 3단계 모드 0~2, 6단계 모드 0~5
+    ax2.set_yticks(range(0, top + 1))
+    ax2.set_ylim(-0.3, top + 0.3)
     ax2.set_xlabel("직사광 시작 후 시간 (초)")
     dr, da = first_darker_at(r, b0), first_darker_at(a, b0)
     lv0 = r[b0]["level"]
     # AI 글자는 선 왼쪽, 규칙 글자는 선 오른쪽에 두어 겹치지 않게
     for d, c, name, tx, ha in ((da, AI, "AI", -0.8, "right"), (dr, RULE, "규칙", dr + 0.4, "left")):
-        ax2.annotate(f"{name} {d}초 만에 어둡게", xy=(d, lv0 - 0.5), xytext=(tx, 4.5),
+        ax2.annotate(f"{name} {d}초 만에 어둡게", xy=(d, lv0 - 0.5), xytext=(tx, top - 0.5),
                      color=c, fontsize=11, fontweight="bold", ha=ha,
                      arrowprops={"arrowstyle": "-", "color": c, "lw": 1})
 
@@ -163,7 +165,7 @@ def plot_metrics(out: str, days: int) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--outdir", default="docs/images")
-    ap.add_argument("--seed", type=int, default=0, help="대표 장면 seed")
+    ap.add_argument("--seed", type=int, default=9, help="대표 장면 seed (3단계 기준 40회 평균에 가장 가까운 장면)")
     ap.add_argument("--bursts", type=int, default=40, help="직사광 평균에 쓸 횟수")
     ap.add_argument("--days", type=int, default=40)
     args = ap.parse_args()

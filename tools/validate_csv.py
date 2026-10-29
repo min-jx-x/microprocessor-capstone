@@ -1,18 +1,20 @@
 """수집한 로그 CSV(ms,hour,lux,level)를 점검한다. (표준 라이브러리만 사용)
 
 사용법:
-    python tools/validate_csv.py data/raw/log_xxx.csv [--levels 6]
+    python tools/validate_csv.py data/raw/log_xxx.csv [--levels 3]   (기본: LIGHTQ_LEVELS, 없으면 3)
 """
 import argparse
 import csv
+import os
 import statistics
 import sys
 
 
 def main():
-    ap = argparse.ArgumentParser(description="수집 로그 CSV 유효성 점검 (기본 6단계: 0~5)")
+    default_levels = 6 if os.environ.get("LIGHTQ_LEVELS", "").strip() == "6" else 3   # pi/calib.py와 같은 규칙
+    ap = argparse.ArgumentParser(description=f"수집 로그 CSV 유효성 점검 (기본 {default_levels}단계: 0~{default_levels - 1})")
     ap.add_argument("path", help="검증할 로그 CSV 파일 경로")
-    ap.add_argument("--levels", type=int, default=6, help="단계 수 (params.h 의 NUM_LEVELS, 기본값: 6)")
+    ap.add_argument("--levels", type=int, default=default_levels, help=f"단계 수 (pi/config.py 의 NUM_LEVELS, 기본값: {default_levels})")
     args = ap.parse_args()
 
     problems, rows = [], []
