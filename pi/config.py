@@ -19,9 +19,11 @@ import os
 #   대신 PA 핀에 PA·PA2, PB 핀에 PB·PB2 두 개씩 연결해 필름 두 선을 모두 끊는다.
 GPIO_PINS = {"SA": 17, "PA": 27, "SB": 22, "PB": 23}
 
-# 릴레이별로 LOW 신호에서 켜지는 타입(저레벨 트리거)이면 True. 릴레이 시험으로 확정 (#14: PA·PB만 저레벨 트리거).
+# 릴레이별로 LOW 신호에서 켜지는 타입(저레벨 트리거)이면 True, HIGH에서 켜지면(고레벨 트리거) False.
+# 10/29 3단계 재배선 후 재시험: PA·PA2·PB·PB2 모두 고레벨 트리거 (HIGH = 켜짐). #14의 'PA·PB 저레벨' 판단은 더 이상 맞지 않음.
 # 3단계 모드의 PA2·PB2는 PA·PB와 같은 핀을 쓰므로 PA·PB와 같은 타입이어야 한다 (H/L 점퍼가 있으면 맞춘다).
-RELAY_ACTIVE_LOW = {"SA": False, "PA": True, "SB": False, "PB": True}
+# 값을 바꾸면 deploy/setup_pi.sh를 다시 실행하고 재부팅한다 (부팅 중 꺼짐 레벨도 이 값을 따름).
+RELAY_ACTIVE_LOW = {"SA": False, "PA": False, "SB": False, "PB": False}
 
 
 def boot_gpio_lines() -> list:
