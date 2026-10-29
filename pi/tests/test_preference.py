@@ -53,19 +53,22 @@ def test_controller_learns_from_manual(tmp_path):
     ctrl = Controller(sensor, relays, clock, outdoor, None, PreferenceStore(path=None))
     for _ in range(6):
         ctrl.step()
-    ctrl.set_manual(5)                                            # 가장 밝게 → 목표보다 밝음
+    ctrl.set_manual(config.NUM_LEVELS - 1)                       # 가장 밝게 직접 조작
     for _ in range(config.PREF_SETTLE):
         ctrl.step()
-    v = ctrl.snapshot()["pref"]
-    assert v["count"]["day"] == 1 and v["offset"]["day"] > 0
-    assert v["targets"]["day"][1] > config.TARGET_DAY_LUX
+    snap = ctrl.snapshot()
+    v = snap["pref"]
+    assert v["count"]["day"] == 1 and v["offset"]["day"] != 0
+    # 직접 고른 밝기가 목표보다 밝았으면 목표가 올라가고, 어두웠으면 내려간다
+    brighter = snap["lux"] > config.TARGET_DAY_LUX
+    assert (v["targets"]["day"][1] > config.TARGET_DAY_LUX) == brighter
 
 
 def test_back_to_auto_before_settle_does_not_learn():
     sensor, relays, clock, outdoor = build_devices(False, 0, "12:00")
     ctrl = Controller(sensor, relays, clock, outdoor, None, PreferenceStore(path=None))
     ctrl.step()
-    ctrl.set_manual(5)
+    ctrl.set_manual(config.NUM_LEVELS - 1)
     ctrl.step()
     ctrl.set_mode("auto")
     for _ in range(5):
@@ -92,7 +95,7 @@ def test_learning_can_be_turned_off(tmp_path):
     assert c.post("/api/pref/learn", json={"enabled": False}).status_code == 200
     assert c.post("/api/pref/learn", json={"enabled": "no"}).status_code == 400
     ctrl.step()
-    ctrl.set_manual(5)
+    ctrl.set_manual(config.NUM_LEVELS - 1)
     for _ in range(config.PREF_SETTLE + 1):
         ctrl.step()
     v = ctrl.snapshot()["pref"]

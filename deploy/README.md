@@ -64,35 +64,35 @@ i2cdetect -y 1                              # 표에 23 이 보여야 함
 ## 6. 릴레이 (교류 연결 없이)
 
 ```bash
-.venv/bin/python -m pi.tools.check_relays --each     # SA → PA → SB → PB 하나씩 딸깍
-.venv/bin/python -m pi.tools.check_relays --levels   # 0~5단계, Enter로 다음
+.venv/bin/python -m pi.tools.check_relays --each     # SA → PA → SB → PB 순서 (3단계 모드: SA·SB는 연결 안 함)
+.venv/bin/python -m pi.tools.check_relays --levels   # 모든 단계(3단계 모드 0~2), Enter로 다음
 .venv/bin/python -m pi.app --real                    # 웹 수동 버튼으로 단계 바꾸며 LED 확인
 ```
 
 - 이름과 다른 릴레이가 켜지면: 배선 또는 `pi/config.py`의 `GPIO_PINS`
 - 켜짐/꺼짐이 반대면: `pi/config.py`의 `RELAY_ACTIVE_LOW`를 반대로
-- SA, SB는 릴레이 2개가 같이 움직여야 정상
+- 3단계 모드: PA는 PA·PA2, PB는 PB·PB2 두 개가 같이 움직여야 정상 (6단계 모드: SA, SB도 릴레이 2개씩)
 
-## 7. 교류 연결 (지도교수님 확인 후)
+## 7. 교류 연결 (팀 자체 점검표 확인 후)
 
-1. 변압기만 꽂고 멀티미터로 T1(약 100V), T2(약 45V) 출력 측정 → 필름 정격 60~110V 안인지
+1. 변압기만 꽂고 멀티미터로 T1(약 100V), T2(약 45V) 출력 측정 → T2가 필름 구동 전압 60~70V 이하인지. 3단계 모드에서는 T1 100V를 필름에 쓰지 않음
 2. [../hardware/safety_checklist.md](../hardware/safety_checklist.md) 전부 체크
-3. 필름 A만 연결 → 웹 수동 모드로 0·1·3단계 확인 (3단계 동작)
-4. 필름 B 연결 → 0~5단계 전체 확인 (6단계 동작)
+3. 필름 A만 연결 → 웹 수동 모드로 0·1단계 확인
+4. 필름 B 연결 → 0~2단계 전체 확인
 
 ## 8. 단계별 실측과 재학습
 
-1. LED 스탠드 밝기·거리를 고정하고, 웹 수동 모드로 0~5단계를 하나씩 켜서 화면의 실내 조도를 기록
+1. LED 스탠드 밝기·거리를 고정하고, 웹 수동 모드로 0~2단계를 하나씩 켜서 화면의 실내 조도를 기록
 2. 스탠드를 끄고 잡광도 한 번 기록
 3. **노트북에서** (Pi에서 git push 설정을 하지 않아도 되도록):
 
 ```
-python -m pi.calib --lux 0단계 1단계 2단계 3단계 4단계 5단계 --ambient 잡광 --note "스탠드 밝기·거리"
+python -m pi.calib --lux 0단계 1단계 2단계 --ambient 잡광 --note "스탠드 밝기·거리"
 python -m pi.ai.retrain
 python -m pi.ai.plot_compare
 ```
 
-값 순서는 단계표 기본 순서(꺼짐/꺼짐, 45V/꺼짐, 45V/45V, 100V/꺼짐, 100V/45V, 100V/100V)입니다.
+값 순서는 단계표 기본 순서(꺼짐/꺼짐, 45V/꺼짐, 45V/45V)입니다. 6단계 모드는 명령 앞에 `LIGHTQ_LEVELS=6`을 붙이고 값 6개를 넣습니다(서비스로 돌릴 때는 systemd 파일에 `Environment=LIGHTQ_LEVELS=6`).
 결과(`pi/data/lut.json`, `pi/data/ai_tree.json`, `docs/images/`)를 커밋·PR → Pi에서 `git pull`.
 
 ## 9. 시연 준비: 핫스팟과 자동 실행

@@ -7,13 +7,14 @@ SimSensor: 바깥 빛 × 필름 투과율 + 실내 잡광 + 잡음으로 조도�
 import random
 from typing import Callable, Dict, Optional
 
-from pi import config
+from pi import calib, config
 
 # 필름 한 장의 상태별 투과율 (가정값).
 # 실측(pi/tools/calibrate.py) 후 pi/data/lut.json 값으로 바꾼다.
 # 두 장을 겹치면 투과율이 곱해진다. 예: high + low = 0.8 * 0.45 = 0.36
 FILM_T = {"off": 0.30, "low": 0.45, "high": 0.80}
-SIM_T_TOP = FILM_T["high"] * FILM_T["high"]   # 가장 밝은 단계의 절대 투과율 (실측은 상대값뿐이라 이 값으로 크기를 맞춤)
+# 가장 밝은 단계의 절대 투과율 (실측은 상대값뿐이라 이 값으로 크기를 맞춤). 3단계 = 45V/45V, 6단계 = 100V/100V
+SIM_T_TOP = max(FILM_T[a] * FILM_T[b] for a, b in calib.DEFAULT_LEVELS)
 
 
 def combo_transmittance(a: str, b: str) -> float:

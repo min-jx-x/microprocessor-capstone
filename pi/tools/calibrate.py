@@ -1,14 +1,10 @@
 """단계별 조도 측정 및 룩업테이블(LUT) 생성 스크립트.
 
-값 순서 기준 (0 ~ 5단계):
-    0단계: 꺼짐/꺼짐 (off / off)
-    1단계: 45V/꺼짐 (low / off)
-    2단계: 45V/45V  (low / low)
-    3단계: 100V/꺼짐 (high / off)
-    4단계: 100V/45V  (high / low)
-    5단계: 100V/100V (high / high)
+값 순서 기준은 pi/calib.py의 단계 구성을 따른다 (환경변수 LIGHTQ_LEVELS, 기본 3).
+    3단계 모드(기본): 꺼짐/꺼짐, 45V/꺼짐, 45V/45V
+    6단계 모드      : 위 3개 + 100V/꺼짐, 100V/45V, 100V/100V
 
-Pi(또는 시뮬레이션 모드)에서 실행하여 0~5단계를 차례로 적용하고,
+Pi(또는 시뮬레이션 모드)에서 실행하여 모든 단계를 차례로 적용하고,
 각 단계에서 3초간 안정화 대기 후 조도(lux)를 10번 측정하여 평균을 계산한다.
 측정 전에 광원을 끄고 실내 잡광도 잰다 (--ambient 로 값을 직접 줄 수도 있음).
 결과는 pi/data/lut.json에 저장된다.
@@ -35,24 +31,11 @@ if REPO_ROOT not in sys.path:
 
 DEFAULT_OUT = os.path.join(REPO_ROOT, "pi", "data", "lut.json")
 
-# 단계별 필름 조합 (A 필름, B 필름)
-LEVEL_COMBOS = [
-    ("off", "off"),   # 0단계: 꺼짐/꺼짐
-    ("low", "off"),   # 1단계: 45V/꺼짐
-    ("low", "low"),   # 2단계: 45V/45V
-    ("high", "off"),  # 3단계: 100V/꺼짐
-    ("high", "low"),  # 4단계: 100V/45V
-    ("high", "high"), # 5단계: 100V/100V
-]
+from pi import calib as _calib  # noqa: E402  (sys.path 설정 뒤에 불러온다)
 
-COMBO_NAMES = [
-    "꺼짐/꺼짐",
-    "45V/꺼짐",
-    "45V/45V",
-    "100V/꺼짐",
-    "100V/45V",
-    "100V/100V",
-]
+# 단계별 필름 조합 (A 필름, B 필름). 3단계 모드면 3개, 6단계 모드면 6개
+LEVEL_COMBOS = list(_calib.DEFAULT_LEVELS)
+COMBO_NAMES = [_calib.combo_name(a, b) for a, b in LEVEL_COMBOS]
 
 
 def get_devices(sim: bool):
@@ -138,7 +121,7 @@ def run_calibration(sim: bool, settle_s: float, samples: int, lamp_step: int, ou
     lux_list = []
 
     print("=" * 65)
-    print("           단계별 조도 캘리브레이션 측정 (0~5단계)           ")
+    print(f"           단계별 조도 캘리브레이션 측정 (0~{num_levels - 1}단계)           ")
     print("=" * 65)
     print(f"동작 모드       : {'시뮬레이션 (--sim)' if sim else '실제 하드웨어'}")
     print(f"스탠드 밝기 단계: {lamp_step} 단계")

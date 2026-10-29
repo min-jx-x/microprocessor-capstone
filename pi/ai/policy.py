@@ -13,7 +13,7 @@ from pi import config
 from pi.ai.features import HISTORY, make_features
 from pi.control.decide import PERIOD_NAMES, incident_of, personal_target
 
-DEFAULT_MODEL = "pi/data/ai_tree.json"
+DEFAULT_MODEL = config.AI_MODEL_PATH   # 3단계: ai_tree.json, 6단계: ai_tree_6level.json
 
 
 class AIPolicy:
@@ -45,7 +45,8 @@ class AIPolicy:
         while m["left"][node] != -1:
             go_left = x[m["feature"][node]] <= m["threshold"][node]
             node = m["left"][node] if go_left else m["right"][node]
-        return m["classes"][m["leaf_class"][node]]
+        # 다른 단계 수로 학습된 모델이 범위 밖 단계를 내도 가장 밝은 단계로 묶는다 (재학습 전 안전장치)
+        return min(int(m["classes"][m["leaf_class"][node]]), config.NUM_LEVELS - 1)
 
     def decide(self, lux: float, hour: float, cur: int, wake_hour: float,
                scale: Optional[Dict[str, float]] = None) -> Tuple[int, Dict]:

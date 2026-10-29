@@ -25,7 +25,7 @@ def main() -> None:
     run(["pi.ai.make_dataset", "--days", str(a.days)])
     run(["pi.ai.train"])
     run(["pi.ai.evaluate", "--days", str(a.eval_days)])
-    print("\n완료. 결과가 괜찮으면 pi/data/ai_tree.json (그리고 lut.json)을 커밋하세요.")
+    print(f"\n완료. 결과가 괜찮으면 {config.AI_MODEL_PATH} (그리고 lut.json)을 커밋하세요.")
 
 
 if __name__ == "__main__":

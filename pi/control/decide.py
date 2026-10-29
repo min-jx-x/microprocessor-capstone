@@ -58,7 +58,7 @@ def choose_level(t_need: float, cur: int, lut: List[float]) -> int:
 
 
 def incident_of(lux: float, cur: int, lut: List[float]) -> float:
-    """측정 조도와 현재 단계로 필름에 들어오는 빛(5단계 기준)을 거꾸로 추정한다."""
+    """측정 조도와 현재 단계로 필름에 들어오는 빛(가장 밝은 단계 기준)을 거꾸로 추정한다."""
     return max(lux / lut[cur], 1.0)     # 어두울 때 0으로 나누기 방지
 
 
