@@ -8,7 +8,7 @@
 
 확인할 것
   --each   : 이름과 다른 릴레이가 켜지면 배선이나 GPIO 번호(config.GPIO_PINS) 문제
-             '켜짐'인데 LED가 꺼지고 '꺼짐'인데 켜지면 RELAY_ACTIVE_LOW 를 반대로
+             '켜짐'인데 LED가 꺼지고 '꺼짐'인데 켜지면 config.RELAY_ACTIVE_LOW 에서 그 릴레이 값을 반대로
              6단계 모드: SA, SB는 릴레이 2개가 같이 딸깍해야 정상 (두 선 동시 전환)
              3단계 모드: SA, SB는 연결하지 않으므로 소리가 없어도 정상.
                          PA는 PA·PA2, PB는 PB·PB2 두 개가 같이 딸깍해야 정상 (두 선 모두 차단)

@@ -70,7 +70,8 @@ i2cdetect -y 1                              # 표에 23 이 보여야 함
 ```
 
 - 이름과 다른 릴레이가 켜지면: 배선 또는 `pi/config.py`의 `GPIO_PINS`
-- 켜짐/꺼짐이 반대면: `pi/config.py`의 `RELAY_ACTIVE_LOW`를 반대로
+- 켜짐/꺼짐이 반대면: `pi/config.py`의 `RELAY_ACTIVE_LOW`에서 그 릴레이 값을 반대로 바꾼 뒤 `bash deploy/setup_pi.sh` 다시 실행, 재부팅 (부팅 중 꺼짐 레벨도 같이 바뀜)
+- PA·PA2(PB·PB2) 중 하나만 반대로 움직이면: 모듈 트리거 방식이 다른 것. H/L 점퍼를 PA·PB와 같게 맞추거나 같은 타입 모듈로 교체 (코드로는 못 고침)
 - 3단계 모드: PA는 PA·PA2, PB는 PB·PB2 두 개가 같이 움직여야 정상 (6단계 모드: SA, SB도 릴레이 2개씩)
 
 ## 7. 교류 연결 (팀 자체 점검표 확인 후)

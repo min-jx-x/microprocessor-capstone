@@ -11,22 +11,20 @@ from pi import config
 
 class GpioRelays:
     def __init__(self, pins: Optional[dict[str, int]] = None,
-                 active_low: Optional[bool] = None) -> None:
+                 active_low: Optional[dict[str, bool]] = None) -> None:
         if pins is None:
             pins = config.GPIO_PINS
         if active_low is None:
             active_low = config.RELAY_ACTIVE_LOW
 
         self.pins = dict(pins)
-        self.active_low = active_low
+        self.active_low = dict(active_low)   # 릴레이별 저레벨 트리거 여부 (PA·PB만 True)
         self.devices: dict[str, OutputDevice] = {}
 
         for name, pin in self.pins.items():
-            # PA, PB 모듈만 트리거 특성이 반대이므로 active_high 논리를 반전 설정
-            is_active_high = self.active_low if name in ("PA", "PB") else not self.active_low
             self.devices[name] = OutputDevice(
                 pin,
-                active_high=is_active_high,
+                active_high=not self.active_low[name],
                 initial_value=False
             )
 
