@@ -41,6 +41,18 @@ def test_relay_state_matches_level_table():
         assert relays.film_states() == tuple(films)
 
 
+def test_boot_gpio_lines_cover_each_pin_once():
+    """부팅 설정이 모든 릴레이 핀을 한 번씩, 트리거 방식에 맞는 꺼짐 레벨로 적는지 (gpiozero 없이)."""
+    seen = {}
+    for line in config.boot_gpio_lines():
+        pins, level = line[len("gpio="):].split("=op,")
+        for p in pins.split(","):
+            assert int(p) not in seen, f"GPIO{p}가 두 번 나옴"
+            seen[int(p)] = level
+    for name, p in config.GPIO_PINS.items():
+        assert seen[p] == ("dh" if config.RELAY_ACTIVE_LOW[name] else "dl"), name
+
+
 def test_starts_all_off():
     relays = SimRelays()
     LevelDriver(relays, settle_s=0)

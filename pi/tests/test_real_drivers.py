@@ -32,31 +32,42 @@ def pin(name):
     return int(Device.pin_factory.pin(config.GPIO_PINS[name]).state)
 
 
-def on_level():
+def on_level(name):
     """릴레이를 '켬'으로 했을 때 핀 전압. 저레벨 트리거면 0."""
-    return 0 if config.RELAY_ACTIVE_LOW else 1
+    return 0 if config.RELAY_ACTIVE_LOW[name] else 1
 
 
 def test_starts_all_off(relays):
     for n in config.GPIO_PINS:
-        assert pin(n) == 1 - on_level(), f"{n}이 시작부터 켜져 있음"
+        assert pin(n) == 1 - on_level(n), f"{n}이 시작부터 켜져 있음"
+
+
+def test_boot_level_matches_off(relays):
+    """config.txt 부팅 레벨(dh/dl)이 드라이버의 '꺼짐' 핀 전압과 같아야 부팅 중에도 릴레이가 안 켜진다."""
+    boot = {}
+    for line in config.boot_gpio_lines():
+        pins, level = line[len("gpio="):].split("=op,")
+        for p in pins.split(","):
+            boot[int(p)] = 1 if level == "dh" else 0
+    for n, p in config.GPIO_PINS.items():
+        assert boot[p] == pin(n), f"{n}(GPIO{p}) 부팅 레벨이 꺼짐 상태와 다름"
 
 
 def test_set_each(relays):
     for n in config.GPIO_PINS:
         relays.set(n, True)
-        assert pin(n) == on_level()
+        assert pin(n) == on_level(n)
         others = [m for m in config.GPIO_PINS if m != n]
-        assert all(pin(m) == 1 - on_level() for m in others), f"{n}을 켰는데 다른 핀이 바뀜"
+        assert all(pin(m) == 1 - on_level(m) for m in others), f"{n}을 켰는데 다른 핀이 바뀜"
         relays.set(n, False)
-        assert pin(n) == 1 - on_level()
+        assert pin(n) == 1 - on_level(n)
 
 
 def test_all_off(relays):
     for n in config.GPIO_PINS:
         relays.set(n, True)
     relays.all_off()
-    assert all(pin(n) == 1 - on_level() for n in config.GPIO_PINS)
+    assert all(pin(n) == 1 - on_level(n) for n in config.GPIO_PINS)
 
 
 def test_unknown_name_rejected(relays):
@@ -65,9 +76,9 @@ def test_unknown_name_rejected(relays):
 
 
 def test_safe_order_with_real_driver(relays):
-    """실제 드라이버 + 단계 전환기로 0 → 5 → 0 전환 후 모두 꺼짐."""
+    """실제 드라이버 + 단계 전환기로 모든 단계를 거쳐 0으로 돌아온 뒤 모두 꺼짐."""
     from pi.control.loop import LevelDriver
     drv = LevelDriver(relays, settle_s=0)
     for lv in list(range(config.NUM_LEVELS)) + [0]:
         drv.apply(lv)
-    assert all(pin(n) == 1 - on_level() for n in config.GPIO_PINS)
+    assert all(pin(n) == 1 - on_level(n) for n in config.GPIO_PINS)

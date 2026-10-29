@@ -17,12 +17,15 @@ sudo raspi-config nonint do_i2c 0
 echo "== 3/6 릴레이 핀을 부팅 직후부터 '꺼짐'으로 고정"
 # 서비스가 뜨기 전(부팅 중)에는 GPIO가 입력 상태라 릴레이가 어떻게 될지 알 수 없다.
 # config.txt에 출력 레벨을 정해 두면 펌웨어가 부팅 초기에 바로 그 레벨로 둔다.
-# 핀 번호와 저레벨 트리거 여부는 pi/config.py 값을 그대로 쓴다 (바꾸면 이 스크립트를 다시 실행)
+# 핀 번호와 릴레이별 저레벨 트리거 여부는 pi/config.py 값을 그대로 쓴다 (바꾸면 이 스크립트를 다시 실행)
+# 저레벨 트리거(PA·PB)는 HIGH, 고레벨 트리거(SA·SB)는 LOW가 꺼짐이라 줄이 두 개 생긴다.
 BOOT_CFG=/boot/firmware/config.txt
-GPIO_LINE="$(python3 -c 'from pi import config; print("gpio=" + ",".join(str(p) for p in config.GPIO_PINS.values()) + "=op," + ("dh" if config.RELAY_ACTIVE_LOW else "dl"))')"
+GPIO_LINES="$(python3 -c 'from pi import config; print("\n".join(config.boot_gpio_lines()))')"
 sudo sed -i '/# LightQ relay off at boot$/d' "$BOOT_CFG"
-echo "$GPIO_LINE  # LightQ relay off at boot" | sudo tee -a "$BOOT_CFG" >/dev/null
-echo "  $BOOT_CFG 에 추가: $GPIO_LINE"
+while read -r line; do
+  echo "$line  # LightQ relay off at boot" | sudo tee -a "$BOOT_CFG" >/dev/null
+  echo "  $BOOT_CFG 에 추가: $line"
+done <<< "$GPIO_LINES"
 
 echo "== 4/6 권한 그룹 (sudo 없이 GPIO·I2C 사용)"
 sudo usermod -aG gpio,i2c "$USER"

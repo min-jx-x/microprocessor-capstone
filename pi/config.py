@@ -19,9 +19,22 @@ import os
 #   대신 PA 핀에 PA·PA2, PB 핀에 PB·PB2 두 개씩 연결해 필름 두 선을 모두 끊는다.
 GPIO_PINS = {"SA": 17, "PA": 27, "SB": 22, "PB": 23}
 
-# 릴레이 모듈이 LOW 신호에서 켜지는 타입이면 True. 릴레이 시험 후 확정한다.
-## 릴레이 시험 후 False 확정
-RELAY_ACTIVE_LOW = False
+# 릴레이별로 LOW 신호에서 켜지는 타입(저레벨 트리거)이면 True. 릴레이 시험으로 확정 (#14: PA·PB만 저레벨 트리거).
+# 3단계 모드의 PA2·PB2는 PA·PB와 같은 핀을 쓰므로 PA·PB와 같은 타입이어야 한다 (H/L 점퍼가 있으면 맞춘다).
+RELAY_ACTIVE_LOW = {"SA": False, "PA": True, "SB": False, "PB": True}
+
+
+def boot_gpio_lines() -> list:
+    """부팅 직후부터 릴레이를 '꺼짐'으로 두는 /boot/firmware/config.txt 줄 (deploy/setup_pi.sh가 씀).
+
+    저레벨 트리거는 HIGH(dh), 고레벨 트리거는 LOW(dl)가 꺼짐이라 릴레이별로 나눠 적는다.
+    """
+    lines = []
+    for low, level in ((True, "dh"), (False, "dl")):
+        pins = [str(p) for name, p in GPIO_PINS.items() if RELAY_ACTIVE_LOW[name] == low]
+        if pins:
+            lines.append(f"gpio={','.join(pins)}=op,{level}")
+    return lines
 
 # BH1750 조도센서 (I2C)
 BH1750_BUS = 1        # Pi의 I2C 버스 번호
