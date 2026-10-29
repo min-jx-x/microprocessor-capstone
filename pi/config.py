@@ -77,6 +77,10 @@ NUM_LEVELS = len(LEVELS)
 AI_MODEL_PATH = os.environ.get(
     "LIGHTQ_AI_MODEL",
     "pi/data/ai_tree.json" if LEVEL_MODE == 3 else "pi/data/ai_tree_6level.json")
+# 모델 선택 근거 실험 결과 (python -m pi.ai.compare_models). 웹 'AI 설명' 페이지가 읽는다.
+AI_REPORT_PATH = os.environ.get(
+    "LIGHTQ_AI_REPORT",
+    "pi/data/ai_report.json" if LEVEL_MODE == 3 else "pi/data/ai_report_6level.json")
 
 # ---------------------------------------------------------------------------
 # 시간대와 목표 조도 (Uno 시절 params.h 값을 이어받음, 팀 합의 후 조정)

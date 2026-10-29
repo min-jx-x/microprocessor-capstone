@@ -1,7 +1,7 @@
 """실측 후 한 번에 다시 학습하기 (노트북에서 실행).
 
 실행 (레포 최상위): python -m pi.ai.retrain
-순서: 학습 데이터 생성 → 결정트리 학습 → 규칙 대 AI 비교
+순서: 학습 데이터 생성 → 결정트리 학습 → 규칙 대 AI 비교 → 모델 선택 근거 실험 (웹 'AI 설명' 페이지)
 lut.json(실측값)이 있으면 세 단계 모두 실측 기준으로 돈다. 끝나면 ai_tree.json을 커밋해서 Pi에 올린다.
 """
 import argparse
@@ -25,7 +25,8 @@ def main() -> None:
     run(["pi.ai.make_dataset", "--days", str(a.days)])
     run(["pi.ai.train"])
     run(["pi.ai.evaluate", "--days", str(a.eval_days)])
-    print(f"\n완료. 결과가 괜찮으면 {config.AI_MODEL_PATH} (그리고 lut.json)을 커밋하세요.")
+    run(["pi.ai.compare_models", "--sim-days", str(a.days), "--eval-days", str(a.eval_days)])
+    print(f"\n완료. 결과가 괜찮으면 {config.AI_MODEL_PATH}, {config.AI_REPORT_PATH} (그리고 lut.json)을 커밋하세요.")
 
 
 if __name__ == "__main__":

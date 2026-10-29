@@ -10,6 +10,8 @@
 브라우저: http://localhost:5000  (Pi 핫스팟에서는 http://10.42.0.1:5000, 확인 필요)
 """
 import argparse
+import json
+import os
 import signal
 from datetime import datetime
 
@@ -65,9 +67,26 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False) -> Fl
     def index():
         return render_template("index.html", num_levels=config.NUM_LEVELS)
 
+    @app.get("/ai")
+    def ai_page():
+        return render_template("ai.html")
+
     @app.get("/api/state")
     def state():
         return jsonify(ctrl.snapshot())
+
+    # ---- AI 설명 페이지 ----
+    @app.get("/api/ai/explain")
+    def ai_explain():
+        return jsonify(ctrl.explain())
+
+    @app.get("/api/ai/report")
+    def ai_report():
+        """모델 선택 근거 실험 결과. 노트북에서 python -m pi.ai.compare_models로 만든 파일을 그대로 보낸다."""
+        if not os.path.exists(config.AI_REPORT_PATH):
+            return jsonify(error="실험 결과 파일 없음 (python -m pi.ai.compare_models)"), 404
+        with open(config.AI_REPORT_PATH, encoding="utf-8") as f:
+            return jsonify(json.load(f))
 
     @app.post("/api/level")
     def level():

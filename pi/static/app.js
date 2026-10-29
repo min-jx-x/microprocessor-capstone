@@ -130,8 +130,11 @@ function render(st) {
   $("ans-ai").textContent = tgt == null ? "0" : ans.ai ?? "-";
   $("rate").textContent = info.rate != null ? `${info.rate > 0 ? "+" : ""}${Math.round(info.rate * 100)}%` : "-";
   const lutText = st.lut_source === "measured" ? "실측 투과율" : "가정 투과율";
-  $("brain-text").textContent = (st.ai_meta
-    ? `AI = 결정트리 (깊이 ${st.ai_meta.depth}, 시험 정확도 ${Math.round(st.ai_meta.test_acc * 100)}%)`
+  const m = st.ai_meta;
+  $("brain-text").textContent = (m
+    ? `AI = 결정트리 (깊이 ${m.depth}` + (m.change_acc != null
+      ? `, 바꿔야 할 때 정확도 ${Math.round(m.change_acc * 100)}% · 규칙 ${Math.round(m.rule_change_acc * 100)}%)`
+      : `, 시험 정확도 ${Math.round(m.test_acc * 100)}%)`)
     : "AI 모델 파일 없음") + ` · ${lutText}`;
   // 경고
   const warns = [];

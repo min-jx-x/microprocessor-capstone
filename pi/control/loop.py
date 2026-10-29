@@ -236,6 +236,35 @@ class Controller:
         v["learn"] = self.learn_enabled
         return v
 
+    def explain(self) -> dict:
+        """웹 'AI 설명' 페이지용: 지금 판단의 근거 (규칙 계산, AI 트리 경로, 안정화 진행)."""
+        with self.lock:
+            info = dict(self.info)
+            ai = self.policies.get("ai")
+            st = self.stab
+            wait = st.min_interval_s - (time.monotonic() - st.last_switch)
+            rule = None
+            if info.get("t_need") is not None:
+                t = info["t_need"]
+                rule = {"t_need": t, "deadband": config.DEADBAND_T,
+                        "levels": [{"level": i, "t": round(x, 3), "err": round(abs(x - t), 3)}
+                                   for i, x in enumerate(self.lut)]}
+            return {
+                "mode": self.mode,
+                "brain": self.brain,
+                "level": self.level,
+                "lux": self.lux,
+                "period_name": info.get("period_name"),
+                "target": info.get("target"),
+                "answers": info.get("answers", {}),
+                "candidate": info.get("candidate"),
+                "rule": rule,
+                "ai": ai.explain() if ai is not None else None,
+                "stab": {"direction": st.direction, "count": st.count, "need": st.stable_count,
+                         "wait_s": round(max(0.0, wait), 1)},
+                "ai_meta": self.ai_meta,
+            }
+
     def snapshot(self) -> dict:
         with self.lock:
             a, b = config.LEVELS[self.level]

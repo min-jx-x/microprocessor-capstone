@@ -26,19 +26,38 @@ from pi.ai.offline import AMBIENT_LUX, run_day, sim_transmittance
 from pi.control.decide import RulePolicy, choose_level, incident_of, load_lut
 
 
-def label_rows(rows, lut, day):
+def label_rows(rows, lut, day, horizon: int = HORIZON):
+    """horizon: 몇 회 뒤 빛으로 정답을 정할지. 예측 시간 비교(compare_models.py)에서 바꿔 본다."""
     out = []
     incs = [incident_of(r["lux"], r["level"], lut) for r in rows]
-    for i in range(HISTORY - 1, len(rows) - HORIZON):
+    for i in range(HISTORY - 1, len(rows) - horizon):
         r = rows[i]
         if r["target"] is None:          # 저녁·취침은 AI가 판단하지 않음
             continue
         cur = r["level"]
-        future_out = rows[i + HORIZON]["outdoor"]          # 시뮬레이터만 아는 미래 바깥 빛
+        future_out = rows[i + horizon]["outdoor"]          # 시뮬레이터만 아는 미래 바깥 빛
         inc_future = (future_out * sim_transmittance(cur) + AMBIENT_LUX) / lut[cur]
         label = choose_level(r["target"] / max(inc_future, 1.0), cur, lut)
         feats = make_features(r["target"], incs[i - HISTORY + 1:i + 1], cur)
         out.append([day] + [round(x, 5) for x in feats] + [label])
+    return out
+
+
+def simulate_days(days: int, seed: int, lut):
+    """학습용 하루 기록들을 만든다. [(day, rows), ...]  같은 seed면 항상 같은 결과."""
+    profiles = load_profiles()
+    rng = random.Random(seed)
+    out = []
+    for day in range(days):
+        use_kma = profiles and rng.random() < 0.7
+        rows, _ = run_day(RulePolicy(lut),
+                          profile=pick(profiles, rng.randrange(1000)) if use_kma else None,
+                          dt_s=rng.choice([120, 300, 720]),
+                          seed=seed * 100000 + day,
+                          wake_hour=rng.uniform(6.5, 8.5),
+                          bursts=rng.randint(3, 10),
+                          explore=0.03)
+        out.append((day, rows))
     return out
 
 
@@ -51,17 +70,8 @@ def main() -> None:
 
     lut = load_lut()
     profiles = load_profiles()
-    rng = random.Random(args.seed)
     rows_out = []
-    for day in range(args.days):
-        use_kma = profiles and rng.random() < 0.7
-        rows, _ = run_day(RulePolicy(lut),
-                          profile=pick(profiles, rng.randrange(1000)) if use_kma else None,
-                          dt_s=rng.choice([120, 300, 720]),
-                          seed=args.seed * 100000 + day,
-                          wake_hour=rng.uniform(6.5, 8.5),
-                          bursts=rng.randint(3, 10),
-                          explore=0.03)
+    for day, rows in simulate_days(args.days, args.seed, lut):
         rows_out += label_rows(rows, lut, day)
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)

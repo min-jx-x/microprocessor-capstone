@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>라이트큐 AI 설명</title>
+  <!-- 핫스팟에는 인터넷이 없으므로 외부 글꼴·라이브러리 없이 로컬 파일만 쓴다 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="doc">
+<script>
+  try { const t = localStorage.getItem("lightq-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<header class="hd">
+  <div class="hd-title">
+    <h1>라이트큐</h1>
+    <p>AI 설명</p>
+  </div>
+  <div class="hd-right">
+    <span class="chip" id="period-chip">-</span>
+    <a class="nav" href="/">대시보드로</a>
+  </div>
+</header>
+
+<main class="doc-main">
+  <!-- 1. 지금 판단: 큰 숫자 3개 + 입력, 트리 질문은 접어 둠 -->
+  <section class="card">
+    <div class="row">
+      <h2>지금 AI의 판단</h2>
+      <span class="sub" id="live-status">-</span>
+    </div>
+    <p class="note" id="live-note" hidden></p>
+    <div id="live">
+      <div class="stats">
+        <div class="stat"><span>규칙 · 지금 빛</span><b id="ans-rule">-</b><small id="rule-why"></small></div>
+        <div class="stat"><span>AI · 4초 앞 예측</span><b id="ans-ai">-</b><small id="ai-why"></small></div>
+        <div class="stat final"><span>실제 단계</span><b id="applied">-</b><small id="applied-why"></small></div>
+      </div>
+      <div class="chips" id="inputs"></div>
+      <details>
+        <summary>결정트리가 거친 질문 보기</summary>
+        <ol class="path" id="path"></ol>
+      </details>
+    </div>
+  </section>
+
+  <!-- 2. 흐름 -->
+  <section class="card">
+    <h2>어떻게 동작하나</h2>
+    <div class="flow" aria-label="제어 흐름">
+      <div class="node"><b>센서</b><span>1초마다 실내 조도</span></div>
+      <div class="node"><b>바깥 빛 추정</b><span>실내 조도 ÷ 필름 투과율</span></div>
+      <div class="node brain"><b>판단</b><span>규칙 또는 AI</span><em class="side">목표 = 시간표 × 내 선호</em></div>
+      <div class="node"><b>안정화</b><span><em data-r="stable_count">3</em>번 연속 같아야 바꿈</span></div>
+      <div class="node"><b>안전 전환</b><span>전원 끄고 바꾸고 켜기</span></div>
+      <div class="node"><b>필름</b><span>0 ~ <em data-r="top_level">2</em>단계</span></div>
+    </div>
+    <p class="note">안정화로 <b>3초</b> 늦어지는 만큼, AI가 <b>4초 앞</b>을 미리 봅니다.</p>
+  </section>
+
+  <!-- 3. 모델 비교 -->
+  <section class="card">
+    <h2>왜 결정트리인가</h2>
+    <div class="stats">
+      <div class="stat"><span>결정트리 정확도</span><b id="s-tree">-</b><small id="s-tree-sub"></small></div>
+      <div class="stat"><span>더 복잡한 모델과 차이</span><b id="s-gap">-</b><small id="s-gap-sub"></small></div>
+      <div class="stat"><span>Pi에 올리는 파일</span><b id="s-kb">-</b><small>scikit-learn 없이 if문으로 실행</small></div>
+    </div>
+    <div class="chart-wide"><svg id="models-chart" role="img" aria-label="모델별 정확도"></svg></div>
+    <p class="hint" id="metric-hint">정확도 = 단계를 바꿔야 하는 순간에 맞힌 비율</p>
+    <details>
+      <summary>자세한 표</summary>
+      <div class="table-wrap"><table class="data" id="models-table"></table></div>
+    </details>
+  </section>
+
+  <!-- 4. 특징 -->
+  <section class="card">
+    <h2>AI는 무엇을 보나</h2>
+    <div class="stats">
+      <div class="stat"><span>빛 변화율을 빼면</span><b id="s-rate">-</b><small>빛이 오르는 속도 = AI가 미리 어둡게 하는 근거</small></div>
+      <div class="stat"><span>필요 투과율을 빼면</span><b id="s-tneed">-</b><small>가장 중요한 입력 (규칙도 이것만 봄)</small></div>
+    </div>
+    <div class="chart-mid"><svg id="abl-chart" role="img" aria-label="입력을 하나씩 뺐을 때 정확도"></svg></div>
+  </section>
+
+  <!-- 5. 깊이·예측 시간 -->
+  <section class="card">
+    <h2>왜 깊이 <span data-r="depth">8</span>, 왜 <span data-r="horizon">4</span>초 앞인가</h2>
+    <div class="two">
+      <div>
+        <p class="take" id="depth-take">-</p>
+        <div class="chart-mid"><svg id="depth-chart" role="img" aria-label="트리 깊이별 정확도"></svg></div>
+      </div>
+      <div>
+        <p class="take" id="hz-take">-</p>
+        <div class="chart-mid"><svg id="hz-chart" role="img" aria-label="예측 시간별 반응과 눈부심"></svg></div>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot-note" id="report-meta"></p>
+</main>
+
+<script src="{{ url_for('static', filename='ai.js') }}"></script>
+</body>
+</html>
