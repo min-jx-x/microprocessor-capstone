@@ -43,7 +43,7 @@ def test_sensor_failure_goes_safe(tmp_path):
     from pi import config
     sensor, relays, clock, outdoor = build_devices(False, 720, "12:00")
     ctrl = Controller(sensor, relays, clock, outdoor, None)
-    ctrl.set_manual(4)
+    ctrl.set_manual(config.NUM_LEVELS - 1)
     sensor.read_lux = lambda: None     # 센서 고장 흉내
     for _ in range(config.SENSOR_FAIL_LIMIT):
         ctrl.step()

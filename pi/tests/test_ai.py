@@ -6,7 +6,7 @@ import pytest
 from pi import config
 from pi.ai.features import make_features
 
-MODEL = "pi/data/ai_tree.json"
+MODEL = config.AI_MODEL_PATH
 needs_model = pytest.mark.skipif(not os.path.exists(MODEL), reason="ai_tree.json 없음")
 
 
@@ -20,7 +20,7 @@ def test_policy_outputs_valid_level():
     from pi.ai.policy import AIPolicy
     ai = AIPolicy(list(config.LUT_T))
     for lux in (50, 200, 500, 900, 1500):
-        level, info = ai.decide(lux, 12.0, 3, 7.5)
+        level, info = ai.decide(lux, 12.0, config.NUM_LEVELS - 1, 7.5)
         assert 0 <= level < config.NUM_LEVELS
 
 
@@ -28,7 +28,7 @@ def test_policy_outputs_valid_level():
 def test_night_is_level_0():
     from pi.ai.policy import AIPolicy
     ai = AIPolicy(list(config.LUT_T))
-    assert ai.decide(800, 23.0, 4, 7.5)[0] == 0
+    assert ai.decide(800, 23.0, config.NUM_LEVELS - 1, 7.5)[0] == 0
 
 
 @needs_model
@@ -36,7 +36,7 @@ def test_rising_light_not_brighter_than_steady():
     """같은 현재 빛이라도 빛이 빠르게 오르는 중이면 AI는 같거나 더 어두운 단계를 골라야 한다(선제 차광)."""
     from pi.ai.policy import AIPolicy
     lut = list(config.LUT_T)
-    cur = 4
+    cur = config.NUM_LEVELS - 1
     steady, rising = AIPolicy(lut), AIPolicy(lut)
     for _ in range(4):
         lv_s, _ = steady.decide(1000 * lut[cur], 12.0, cur, 7.5)
@@ -61,8 +61,9 @@ def test_stale_model_starts_with_rule(monkeypatch):
 def test_stale_when_level_order_changed(monkeypatch):
     from pi.ai.policy import AIPolicy
     lut = list(config.LUT_T)
-    assert not AIPolicy(lut).stale
+    if AIPolicy(lut).stale:
+        pytest.skip("모델이 지금과 다른 단계 구성으로 학습됨 (LIGHTQ_LEVELS를 바꿨으면 retrain 필요)")
     levels = list(config.LEVELS)
-    levels[2], levels[3] = levels[3], levels[2]
+    levels[1], levels[2] = levels[2], levels[1]
     monkeypatch.setattr(config, "LEVELS", levels)
     assert AIPolicy(lut).stale

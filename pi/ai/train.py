@@ -2,9 +2,9 @@
 
 실행 (레포 최상위): python -m pi.ai.train
 입력: pi/data/ai_dataset.csv (make_dataset.py 결과)
-출력: pi/data/ai_tree.json  ← Pi는 이 파일만 읽는다. Pi에는 scikit-learn이 필요 없다.
+출력: config.AI_MODEL_PATH (3단계 pi/data/ai_tree.json, 6단계 pi/data/ai_tree_6level.json)  ← Pi는 이 파일만 읽는다. Pi에는 scikit-learn이 필요 없다.
 
-모델: 결정트리 분류기. 특징 6개 → 다음 단계(0~5).
+모델: 결정트리 분류기. 특징 6개 → 다음 단계(0 ~ config.NUM_LEVELS-1, 3단계 모드면 0~2).
   - 규칙처럼 "if 변화율 > x 이고 필요 투과율 < y 이면 4단계" 형태라 판단 근거를 설명할 수 있다.
   - 추론은 if문 몇 번이라 Pi에서 1ms도 안 걸린다.
 검증: 날짜(day) 단위로 20%를 떼어 학습에 쓰지 않은 날로 평가한다.
@@ -42,7 +42,7 @@ def export_tree(clf, path: str, meta: dict) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="pi/data/ai_dataset.csv")
-    ap.add_argument("--out", default="pi/data/ai_tree.json")
+    ap.add_argument("--out", default=config.AI_MODEL_PATH)
     ap.add_argument("--depth", type=int, default=8)
     args = ap.parse_args()
 

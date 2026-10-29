@@ -2,14 +2,16 @@
 
 실행 (레포 최상위):
   python -m pi.tools.check_relays --each      릴레이 신호를 하나씩 켰다 끄기 (SA → PA → SB → PB)
-  python -m pi.tools.check_relays --levels    0~5단계를 차례로 적용 (Enter로 다음 단계)
+  python -m pi.tools.check_relays --levels    모든 단계를 차례로 적용 (3단계 모드 0~2, 6단계 모드 0~5, Enter로 다음)
   python -m pi.tools.check_relays --mock ...  Pi 없이 노트북에서 실제 GpioRelays 코드 시험 (gpiozero 가짜 핀)
   python -m pi.tools.check_relays --sim ...   GpioRelays 없이 가짜 릴레이로 흐름만 확인
 
 확인할 것
   --each   : 이름과 다른 릴레이가 켜지면 배선이나 GPIO 번호(config.GPIO_PINS) 문제
              '켜짐'인데 LED가 꺼지고 '꺼짐'인데 켜지면 RELAY_ACTIVE_LOW 를 반대로
-             SA, SB는 릴레이 2개가 같이 딸깍해야 정상 (두 선 동시 전환)
+             6단계 모드: SA, SB는 릴레이 2개가 같이 딸깍해야 정상 (두 선 동시 전환)
+             3단계 모드: SA, SB는 연결하지 않으므로 소리가 없어도 정상.
+                         PA는 PA·PA2, PB는 PB·PB2 두 개가 같이 딸깍해야 정상 (두 선 모두 차단)
   --levels : 화면의 '예상 상태'와 릴레이 LED가 같은지
 끝날 때와 Ctrl+C 때 항상 모든 릴레이를 끈다.
 """
@@ -18,9 +20,17 @@ import os
 import sys
 import time
 
+from pi import calib  # noqa: E402
+
 NAMES = ("SA", "PA", "SB", "PB")
-ROLE = {"SA": "필름 A 전압 선택 (켜짐=100V, 꺼짐=45V)", "PA": "필름 A 전원",
-        "SB": "필름 B 전압 선택 (켜짐=100V, 꺼짐=45V)", "PB": "필름 B 전원"}
+if calib.LEVEL_MODE == 3:
+    ROLE = {"SA": "3단계 모드에서는 연결 안 함 (소리 없어도 정상)",
+            "PA": "필름 A 전원 (PA·PA2 두 개가 같이 딸깍)",
+            "SB": "3단계 모드에서는 연결 안 함 (소리 없어도 정상)",
+            "PB": "필름 B 전원 (PB·PB2 두 개가 같이 딸깍)"}
+else:
+    ROLE = {"SA": "필름 A 전압 선택 (켜짐=100V, 꺼짐=45V)", "PA": "필름 A 전원",
+            "SB": "필름 B 전압 선택 (켜짐=100V, 꺼짐=45V)", "PB": "필름 B 전원"}
 FILM = {"off": "꺼짐", "low": "45V", "high": "100V"}
 
 
@@ -52,7 +62,7 @@ def pin_levels(relays) -> str:
 
 
 def confirm_no_ac() -> None:
-    print("주의: 변압기 플러그를 뽑아 교류(220V/100V)가 연결되지 않은 상태에서만 실행하세요.")
+    print(f"[{calib.LEVEL_MODE}단계 모드] 주의: 변압기 플러그를 뽑아 교류가 연결되지 않은 상태에서만 실행하세요.")
     if input("교류 연결이 없나요? (y 입력): ").strip().lower() != "y":
         raise SystemExit("중단")
 
@@ -88,7 +98,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="릴레이 확인 (교류 연결 없이)")
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--each", action="store_true", help="신호 하나씩 켰다 끄기")
-    g.add_argument("--levels", action="store_true", help="0~5단계 차례로 적용")
+    g.add_argument("--levels", action="store_true", help="모든 단계 차례로 적용 (3단계 모드 0~2)")
     ap.add_argument("--hold", type=float, default=1.5, help="--each 에서 켜 두는 시간(초)")
     ap.add_argument("--sim", action="store_true", help="가짜 릴레이")
     ap.add_argument("--mock", action="store_true", help="gpiozero 가짜 핀으로 실제 GpioRelays 시험")

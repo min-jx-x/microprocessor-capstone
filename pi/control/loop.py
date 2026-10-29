@@ -35,10 +35,10 @@ class Controller:
         self.driver = LevelDriver(relays)
         self.stab = Stabilizer()
         self.lut = load_lut()
-        # 판단 방식: 규칙은 항상, AI는 모델 파일(pi/data/ai_tree.json)이 있을 때만
+        # 판단 방식: 규칙은 항상, AI는 모델 파일(config.AI_MODEL_PATH)이 있을 때만
         self.policies = {"rule": RulePolicy(self.lut)}
         self.ai_meta = None
-        if os.path.exists("pi/data/ai_tree.json"):
+        if os.path.exists(config.AI_MODEL_PATH):
             from pi.ai.policy import AIPolicy
             ai = AIPolicy(self.lut)
             self.policies["ai"] = ai

@@ -30,7 +30,7 @@ UNHAPPY, PATIENCE, P_ACT, HOLD_MIN = 0.25, 3, 0.7, 30
 
 
 def make_policy(lut):
-    if os.path.exists("pi/data/ai_tree.json"):
+    if os.path.exists(config.AI_MODEL_PATH):
         from pi.ai.policy import AIPolicy
         return AIPolicy(lut)
     return RulePolicy(lut)

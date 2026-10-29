@@ -1,13 +1,17 @@
 """단계별 실측값(lut.json) 읽기·쓰기.
 
-필름을 조립한 뒤, 같은 광원(LED 스탠드)에서 6가지 조합마다 실내 조도를 재서 저장한다.
-값 순서 (기본 6단계):
-    0단계: 꺼짐/꺼짐 (off / off)
-    1단계: 45V/꺼짐 (low / off)
-    2단계: 45V/45V  (low / low)
-    3단계: 100V/꺼짐 (high / off)
-    4단계: 100V/45V  (high / low)
-    5단계: 100V/100V (high / high)
+필름을 조립한 뒤, 같은 광원(LED 스탠드)에서 조합마다 실내 조도를 재서 저장한다.
+
+단계 구성은 환경변수 LIGHTQ_LEVELS로 고른다 (기본 3).
+  3 (기본): 45V만 사용. 필름 업체 안내 구동 전압(60~70V) 안이라 안전하다.
+      0단계: 꺼짐/꺼짐 (off / off)
+      1단계: 45V/꺼짐 (low / off)
+      2단계: 45V/45V  (low / low)
+  6: 45V + 100V. 위 3개 뒤에
+      3단계: 100V/꺼짐 (high / off)
+      4단계: 100V/45V  (high / low)
+      5단계: 100V/100V (high / high)
+  예: LIGHTQ_LEVELS=6 python -m pi.app --real
 
 이 파일이 있으면 config.py가 읽어서
   1) 단계 순서를 실측 밝기 순으로 자동 정렬하고 (2·3단계 순서가 바뀌어도 코드 수정 없음)
@@ -15,14 +19,15 @@
 
 lut.json 형식:
 {
-  "levels": 6,
-  "lux": [40.0, 110.0, 230.0, 300.0, 450.0, 640.0],
-  "ratio": [0.06, 0.17, 0.36, 0.47, 0.70, 1.0],
-  "lamp_step": 7, "measured_at": "2026-10-28T15:00"
+  "levels": 3,
+  "combos": [["off", "off"], ["low", "off"], ["low", "low"]],
+  "lux": [120.0, 260.0, 410.0],
+  "ratio": [0.28, 0.63, 1.0],
+  "lamp_step": 7, "measured_at": "2026-11-01T15:00"
 }
 
-수동 측정 실행 예:
-  python -m pi.calib --lux 40 110 230 300 450 640 --ambient 5 --lamp-step 7
+수동 측정 실행 예 (3단계: 값 3개, 6단계: 값 6개):
+  python -m pi.calib --lux 120 260 410 --ambient 5 --lamp-step 7
 """
 import argparse
 from datetime import datetime
@@ -31,8 +36,26 @@ import os
 from typing import List, Optional, Sequence, Tuple
 
 DEFAULT_PATH = os.environ.get("LIGHTQ_LUT", "pi/data/lut.json")
-DEFAULT_LEVELS = [("off", "off"), ("low", "off"), ("low", "low"),
-                  ("high", "off"), ("high", "low"), ("high", "high")]
+LEVELS_6 = [("off", "off"), ("low", "off"), ("low", "low"),
+            ("high", "off"), ("high", "low"), ("high", "high")]
+LEVELS_3 = LEVELS_6[:3]                 # 45V만: 꺼짐/꺼짐, 45V/꺼짐, 45V/45V
+
+
+def level_mode(value: Optional[str]) -> int:
+    """LIGHTQ_LEVELS 값 → 3 또는 6. 비었거나 모르는 값이면 안전한 3."""
+    return 6 if (value or "").strip() == "6" else 3
+
+
+LEVEL_MODE = level_mode(os.environ.get("LIGHTQ_LEVELS"))
+DEFAULT_LEVELS = list(LEVELS_3 if LEVEL_MODE == 3 else LEVELS_6)
+VOLT = {"off": "꺼짐", "low": "45V", "high": "100V"}
+
+
+def combo_name(a: str, b: str) -> str:
+    return f"{VOLT[a]}/{VOLT[b]}"
+
+
+ORDER_TEXT = ", ".join(combo_name(a, b) for a, b in DEFAULT_LEVELS)
 
 class Calibration:
     """정렬이 끝난 실측 결과. levels[i]와 ratio[i]는 같은 단계(i가 클수록 밝음)."""
@@ -81,12 +104,11 @@ def save(path: str, lux: Sequence[float], ambient: float = 0.0,
          lamp_step: int = 7) -> Calibration:
     cal = build(levels, lux, ambient)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    volt = {"off": "꺼짐", "low": "45V", "high": "100V"}
     with open(path, "w", encoding="utf-8") as f:
         json.dump({
             "levels": len(cal.levels),
             "combos": [list(x) for x in cal.levels],
-            "combinations": [f"{volt[a]}/{volt[b]}" for a, b in cal.levels],   # combos와 같은 순서
+            "combinations": [combo_name(a, b) for a, b in cal.levels],   # combos와 같은 순서
             "lux": [float(x) for x in cal.lux],
             "ratio": cal.ratio,                   # 잡광을 뺀 값. 프로그램이 실제로 쓰는 값과 같음
             "ambient_lux": ambient,
@@ -99,17 +121,18 @@ def save(path: str, lux: Sequence[float], ambient: float = 0.0,
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="단계별 실측값으로 lut.json 만들기 (값 순서: 꺼짐/꺼짐, 45V/꺼짐, 45V/45V, 100V/꺼짐, 100V/45V, 100V/100V)")
-    ap.add_argument("--lux", type=float, nargs="+", required=True, help="조합별 실내 조도 6개 (순서: 꺼짐/꺼짐, 45V/꺼짐, 45V/45V, 100V/꺼짐, 100V/45V, 100V/100V)")
+    n = len(DEFAULT_LEVELS)
+    ap = argparse.ArgumentParser(description=f"단계별 실측값으로 lut.json 만들기 ({n}단계 모드, 값 순서: {ORDER_TEXT})")
+    ap.add_argument("--lux", type=float, nargs="+", required=True, help=f"조합별 실내 조도 {n}개 (순서: {ORDER_TEXT})")
     ap.add_argument("--ambient", type=float, default=0.0, help="광원을 끄고 잰 실내 잡광")
     ap.add_argument("--lamp-step", type=int, default=7, help="스탠드 밝기 단계 (기본값: 7)")
     ap.add_argument("--note", default="")
     ap.add_argument("--out", default=DEFAULT_PATH)
     args = ap.parse_args()
     if len(args.lux) != len(DEFAULT_LEVELS):
-        ap.error(f"--lux 값은 {len(DEFAULT_LEVELS)}개여야 함 (순서: 꺼짐/꺼짐, 45V/꺼짐, 45V/45V, 100V/꺼짐, 100V/45V, 100V/100V)")
+        ap.error(f"--lux 값은 {n}개여야 함 ({n}단계 모드, 순서: {ORDER_TEXT}). 6단계로 재려면 LIGHTQ_LEVELS=6")
     cal = save(args.out, args.lux, args.ambient, note=args.note, lamp_step=args.lamp_step)
-    name = {"off": "꺼짐", "low": "45V", "high": "100V"}
+    name = VOLT
     print(f"저장: {args.out}")
     print("정렬된 단계 (0 = 가장 어두움)")
     for i, (lv, r, x) in enumerate(zip(cal.levels, cal.ratio, cal.lux)):

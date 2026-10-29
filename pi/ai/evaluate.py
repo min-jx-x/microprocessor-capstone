@@ -17,6 +17,7 @@ import os
 import random
 import statistics
 
+from pi import config
 from pi.ai.kma import load_profiles, pick
 from pi.ai.offline import run_day
 from pi.ai.policy import AIPolicy
@@ -57,7 +58,7 @@ METRIC_ROWS = (("acc", "정확도(±20%)", "{:.1%}"), ("mape", "MAPE", "{:.1%}")
 
 
 def compare(days: int = 40, seed: int = 777, speed: float = 720,
-            model: str = "pi/data/ai_tree.json", logdir: str = None) -> dict:
+            model: str = config.AI_MODEL_PATH, logdir: str = None) -> dict:
     """같은 날들을 규칙과 AI로 돌려 지표 평균을 돌려준다. {"rule": {...}, "ai": {...}}"""
     lut = load_lut()
     profiles = load_profiles()
@@ -86,7 +87,7 @@ def main() -> None:
     ap.add_argument("--days", type=int, default=30)
     ap.add_argument("--seed", type=int, default=777)     # 학습(seed 0)과 다른 날들
     ap.add_argument("--speed", type=float, default=720)
-    ap.add_argument("--model", default="pi/data/ai_tree.json")
+    ap.add_argument("--model", default=config.AI_MODEL_PATH)
     ap.add_argument("--logdir", default="pi/data")
     args = ap.parse_args()
 
