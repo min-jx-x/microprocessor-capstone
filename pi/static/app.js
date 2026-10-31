@@ -385,8 +385,6 @@ function updateMic(s) {
 }
 
 // --- ① Pi 음성 인식: 녹음해서 WAV로 보낸다 ---
-let rec = null;               // {ctx, stream, src, proc, chunks, timer}
-
 function encodeWav16k(chunks, rate) {
   const len = chunks.reduce((n, c) => n + c.length, 0);
   const all = new Float32Array(len);
@@ -409,45 +407,74 @@ function encodeWav16k(chunks, rate) {
   return { blob: new Blob([buf], { type: "audio/wav" }), seconds: len / rate, peak };
 }
 
-async function recStart() {
+// 마이크는 처음 누를 때 한 번 켜고 계속 열어 둔다 (누를 때마다 켜면 0.1~0.3초 늦어 첫 글자가 잘린다: "눈부셔" → "무조").
+// 누르기 직전 PREROLL_S초도 버퍼에 들고 있다가 녹음 앞에 붙인다. 화면을 벗어나면 마이크를 끈다.
+const PREROLL_S = 0.5;
+let live = null;              // {ctx, stream, src, proc, ring, ringLen, recording, timer}
+let pressed = false;
+
+function micRelease() {
+  if (!live) return;
+  try { live.proc.disconnect(); live.src.disconnect(); } catch (e) {}
+  live.stream.getTracks().forEach((t) => t.stop());
+  live.ctx.close();
+  live = null;
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden && !pressed) micRelease(); });
+
+async function ensureMic() {
+  if (live) {
+    if (live.ctx.state === "suspended") await live.ctx.resume();
+    return live;
+  }
   const AC = window.AudioContext || window.webkitAudioContext;
   const ctx = new AC();                     // 누른 순간(사용자 동작 안)에 만들어야 iOS에서 소리가 들어온다
   ctx.resume();
-  const mine = { ctx, chunks: [] };
-  rec = mine;
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
   } catch (e) {
-    if (rec === mine) { ctx.close(); rec = null; }
+    ctx.close();
     throw new Error("마이크 권한이 없어요");
   }
-  if (rec !== mine) {                       // 권한 창이 떠 있는 동안 손을 뗀 경우: 마이크를 바로 끈다
-    stream.getTracks().forEach((t) => t.stop());
+  const m = { ctx, stream, ring: [], ringLen: 0, recording: null, timer: null };
+  m.src = ctx.createMediaStreamSource(stream);
+  m.proc = ctx.createScriptProcessor(4096, 1, 1);
+  m.proc.onaudioprocess = (e) => {
+    const d = new Float32Array(e.inputBuffer.getChannelData(0));
+    if (m.recording) { m.recording.push(d); return; }
+    m.ring.push(d);
+    m.ringLen += d.length;
+    while (m.ring.length > 1 && m.ringLen - m.ring[0].length > ctx.sampleRate * PREROLL_S) m.ringLen -= m.ring.shift().length;
+  };
+  m.src.connect(m.proc);
+  m.proc.connect(ctx.destination);
+  live = m;
+  return m;
+}
+
+async function recStart() {
+  const m = await ensureMic();
+  if (!pressed) {                           // 처음 권한 창이 떠 있는 동안 손을 뗀 경우: 마이크만 켜 두고 녹음은 안 함
+    $("voice-reply").textContent = "마이크 준비 완료. 다시 누르고 말해 주세요";
     return;
   }
-  rec.stream = stream;
-  rec.src = ctx.createMediaStreamSource(rec.stream);
-  rec.proc = ctx.createScriptProcessor(4096, 1, 1);
-  rec.proc.onaudioprocess = (e) => rec && rec.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
-  rec.src.connect(rec.proc);
-  rec.proc.connect(ctx.destination);
-  rec.timer = setTimeout(recStop, MAX_REC_S * 1000);
+  m.recording = m.ring.slice();             // 누르기 직전 0.5초부터
+  m.ring = [];
+  m.ringLen = 0;
+  m.timer = setTimeout(recStop, MAX_REC_S * 1000);
 }
 
 async function recStop() {
-  if (!rec) return;
-  const r = rec;
-  rec = null;
-  clearTimeout(r.timer);
-  try { r.proc && r.proc.disconnect(); r.src && r.src.disconnect(); } catch (e) {}
-  if (r.stream) r.stream.getTracks().forEach((t) => t.stop());
-  const rate = r.ctx.sampleRate;
-  r.ctx.close();
+  if (!live || !live.recording) return;
+  const chunks = live.recording;
+  live.recording = null;
+  clearTimeout(live.timer);
+  const rate = live.ctx.sampleRate;
   const box = $("voice-reply");
   box.classList.remove("fail");
-  const wav = encodeWav16k(r.chunks, rate);
-  if (wav.seconds < 0.4 || wav.peak < 0.02) {
+  const wav = encodeWav16k(chunks, rate);
+  if (wav.seconds < 0.6 || wav.peak < 0.02) {
     box.textContent = "소리가 거의 안 들어왔어요. 버튼을 누른 채로 말해 주세요";
     box.classList.add("fail");
     return;
@@ -504,6 +531,7 @@ mic.addEventListener("pointerdown", async (e) => {
   e.preventDefault();
   if (micBusy || !micMode) return;
   micBusy = true;
+  pressed = true;
   mic.classList.add("on");
   mic.textContent = "듣는 중… 다 말하면 떼세요";
   try {
@@ -517,6 +545,7 @@ mic.addEventListener("pointerdown", async (e) => {
   }
 });
 const micUp = async () => {
+  pressed = false;
   if (!micBusy) return;
   if (micMode === "whisper") {
     micIdle();

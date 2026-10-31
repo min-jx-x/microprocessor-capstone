@@ -186,8 +186,11 @@ VOICE_STT_URL = "http://127.0.0.1:8178/inference"   # 환경변수 LIGHTQ_STT_UR
 VOICE_STT_TIMEOUT_S = 15.0     # 글자로 바꾸는 데 이보다 오래 걸리면 포기
 VOICE_STT_CHECK_S = 10.0       # 서버가 켜져 있는지 다시 확인하는 간격
 VOICE_STT_LANG = "ko"
-# 자주 나올 단어를 미리 알려 주면 인식이 나아진다 (빈 문자열이면 끔)
-VOICE_STT_PROMPT = "라이트큐 창문 밝기 명령. 너무 밝아, 어둡게, 밝게, 0단계, 1단계, 2단계, 자동으로, 다 가려 줘."
+# 자주 나올 문장을 미리 알려 주면 짧은 말("눈부셔")도 비슷한 단어로 알아듣는다. 환경변수 LIGHTQ_STT_PROMPT로 바꿀 수 있음 (빈 값이면 끔)
+VOICE_STT_PROMPT = os.environ.get("LIGHTQ_STT_PROMPT", (
+    "라이트큐 창문 밝기 명령. 눈부셔. 너무 밝아. 좀 어둡게 해 줘. 좀 밝게 해 줘. 너무 어두워. "
+    "0단계로 바꿔 줘. 1단계로 바꿔 줘. 2단계로 바꿔 줘. 자동으로 해 줘. 다 가려 줘. 완전 투명하게. "
+    "지금 몇 단계야. 영화 볼 거야. 책 읽을 거야. 잘 거야."))
 VOICE_AUDIO_MAX_BYTES = 1_000_000    # 녹음 파일 최대 크기 (16kHz 모노 약 30초)
 VOICE_AUDIO_DIR = "pi/data/voice_audio"
 VOICE_AUDIO_KEEP = int(os.environ.get("LIGHTQ_VOICE_KEEP", "0"))   # 최근 녹음을 몇 개 남길지 (정확도 확인용, 기본 0 = 저장 안 함)
