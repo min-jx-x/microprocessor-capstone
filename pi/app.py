@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import signal
+import threading
 from datetime import datetime
 
 from flask import Flask, Response, jsonify, render_template, request
@@ -24,6 +25,7 @@ from pi.storage import LogStore
 from pi.voice.handler import VoiceHandler
 from pi.voice.intent import load_model
 from pi.voice.llm import GeminiFallback
+from pi.voice.stt import WhisperSTT, is_wav
 
 
 def start_time(start: str = None) -> datetime:
@@ -58,13 +60,37 @@ def build_devices(real: bool, speed: float, start: str = None):
     return sensor, relays, clock, outdoor
 
 
+def save_audio(data: bytes) -> None:
+    """정확도 확인용으로 최근 녹음 config.VOICE_AUDIO_KEEP개만 남긴다 (기본 0 = 저장 안 함)."""
+    if config.VOICE_AUDIO_KEEP <= 0:
+        return
+    os.makedirs(config.VOICE_AUDIO_DIR, exist_ok=True)
+    name = datetime.now().strftime("%Y%m%d_%H%M%S_%f") + ".wav"
+    with open(os.path.join(config.VOICE_AUDIO_DIR, name), "wb") as f:
+        f.write(data)
+    files = sorted(os.listdir(config.VOICE_AUDIO_DIR))
+    for old in files[:-config.VOICE_AUDIO_KEEP]:
+        try:
+            os.remove(os.path.join(config.VOICE_AUDIO_DIR, old))
+        except OSError:
+            pass
+
+
 def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
-               voice: VoiceHandler = None) -> Flask:
+               voice: VoiceHandler = None, stt: WhisperSTT = None) -> Flask:
     """time_sync: 휴대폰 시각으로 시계를 맞출지. --start/--speed로 시각을 정한 시연·시뮬레이션에서는 끈다.
-    voice: 문장 명령 처리기. 없으면 기본(의도 분류기 + 키가 있으면 Gemini)으로 만든다."""
+    voice: 문장 명령 처리기. 없으면 기본(의도 분류기 + 키가 있으면 Gemini)으로 만든다.
+    stt: 음성 → 글자 (whisper.cpp 서버). 없으면 기본 주소로 만든다. 서버가 꺼져 있으면 마이크 녹음만 안 된다."""
     app = Flask(__name__)
+    app.config["MAX_CONTENT_LENGTH"] = config.VOICE_AUDIO_MAX_BYTES + 64 * 1024
     if voice is None:
         voice = VoiceHandler(ctrl, load_model(), GeminiFallback())
+    if stt is None:
+        stt = WhisperSTT()
+
+    def voice_status() -> dict:
+        return dict(voice.status(), stt=stt.available(), stt_error=stt.last_error, https_port=config.WEB_HTTPS_PORT
+                    if os.path.exists(config.TLS_CERT) else None)
     app.json.ensure_ascii = False       # 한글 오류 메시지를 그대로 보이게
 
     def body() -> dict:
@@ -81,7 +107,7 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
     @app.get("/api/state")
     def state():
         # 음성 명령 기록도 같이 보내서, 다른 기기에서 보낸 명령도 모든 화면에 보이게 한다
-        return jsonify(dict(ctrl.snapshot(), voice={"recent": voice.recent()[:8], "status": voice.status()}))
+        return jsonify(dict(ctrl.snapshot(), voice={"recent": voice.recent()[:8], "status": voice_status()}))
 
     # ---- 음성(문장) 명령 ----
     @app.post("/api/voice")
@@ -93,9 +119,30 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
         except ValueError as e:
             return jsonify(error=str(e)), 400
 
+    @app.post("/api/voice/audio")
+    def voice_audio():
+        """웹에서 녹음한 WAV(16kHz 모노) → whisper.cpp로 글자 → 문장 명령과 같은 처리."""
+        f = request.files.get("audio")
+        if f is None:
+            return jsonify(error="audio 파일이 없음"), 400
+        data = f.read(config.VOICE_AUDIO_MAX_BYTES + 1)
+        if len(data) > config.VOICE_AUDIO_MAX_BYTES:
+            return jsonify(error="녹음이 너무 김"), 413
+        if not is_wav(data):
+            return jsonify(error="WAV 형식이 아님"), 400
+        text = stt.transcribe(data)
+        if text is None:
+            return jsonify(error=stt.last_error or "음성 인식 실패"), 503
+        save_audio(data)
+        if not text:
+            return jsonify(text="", heard="", applied=False, source="none", action="none",
+                           reply="잘 안 들렸어요. 다시 말해 주세요", stt_ms=stt.last_ms)
+        result = voice.handle(text, request.form.get("device", ""))
+        return jsonify(dict(result, heard=text, stt_ms=stt.last_ms))
+
     @app.get("/api/voice")
     def voice_info():
-        return jsonify(status=voice.status(), recent=voice.recent())
+        return jsonify(status=voice_status(), recent=voice.recent())
 
     @app.post("/api/voice/learn")
     def voice_learn():
@@ -221,6 +268,7 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=config.WEB_PORT)
     ap.add_argument("--speed", type=float, default=1.0, help="가상 시계 배속. 0이면 시각 고정")
     ap.add_argument("--start", default=None, help="가상 시계 시작 시각 HH:MM")
+    ap.add_argument("--no-learn", action="store_true", help="수동 조절 학습을 끈 채로 시작 (시연용, 재부팅해도 유지)")
     args = ap.parse_args()
 
     # systemd가 서버를 끌 때(SIGTERM)도 Ctrl+C와 똑같이 처리해서 아래 finally에서 릴레이를 모두 끈다
@@ -231,13 +279,25 @@ def main() -> None:
     sensor, relays, clock, outdoor = build_devices(args.real, args.speed, args.start)
     store = LogStore(config.DB_PATH)
     ctrl = Controller(sensor, relays, clock, outdoor, store, PreferenceStore())
+    if args.no_learn:
+        ctrl.set_learning(False)
     ctrl.start()
     # 실제 시각을 따라가는 경우에만 휴대폰 시각으로 맞춘다 (시각 고정·배속 시연은 그대로 둠)
     app = create_app(ctrl, store, time_sync=args.start is None and args.speed == 1)
+    https = None
+    if os.path.exists(config.TLS_CERT) and os.path.exists(config.TLS_KEY):
+        # 휴대폰 브라우저는 HTTPS에서만 마이크를 허용한다. HTTP(5000)는 그대로 두고 HTTPS를 하나 더 연다
+        from werkzeug.serving import make_server
+        https = make_server(args.host, config.WEB_HTTPS_PORT, app, threaded=True,
+                            ssl_context=(config.TLS_CERT, config.TLS_KEY))
+        threading.Thread(target=https.serve_forever, daemon=True).start()
+        print(f"[web] HTTPS https://{args.host}:{config.WEB_HTTPS_PORT} (자체 서명 인증서)")
     try:
         # use_reloader=False: 자동 재시작이 켜지면 제어 스레드가 두 개 생겨 릴레이를 동시에 건드린다
         app.run(host=args.host, port=args.port, debug=False, use_reloader=False, threaded=True)
     finally:
+        if https is not None:
+            https.shutdown()
         ctrl.stop()
         relays.close()
         sensor.close()

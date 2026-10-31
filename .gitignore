@@ -57,3 +57,5 @@ pi/data/ai_dataset.csv
 pi/data/eval_*.csv
 pi/data/preferences.json
 pi/data/preferences.json.tmp
+pi/data/certs/
+pi/data/voice_audio/

@@ -29,6 +29,11 @@ train,darker,좀 덜 밝았으면 좋겠어
 train,darker,햇볕 좀 막아줘
 train,darker,빛 조금 가려줘
 train,darker,조금 덜 밝게
+train,darker,모니터가 반사돼
+train,darker,티비 화면이 잘 안 보여
+train,darker,햇빛 때문에 더워
+train,darker,컴퓨터 하는데 눈부셔
+train,darker,조금 아늑하게
 train,brighter,너무 어두워
 train,brighter,어둡다
 train,brighter,좀 밝게 해줘
@@ -59,6 +64,9 @@ train,brighter,빛이 부족해
 train,brighter,햇볕 좀 들게 해줘
 train,brighter,깜깜해
 train,brighter,캄캄하다
+train,brighter,식물이 빛을 못 받아
+train,brighter,방이 칙칙해
+train,brighter,좀 상쾌하게 밝혀줘
 train,set_level,0단계로 해줘
 train,set_level,1단계로 바꿔줘
 train,set_level,2단계로 해 줘
@@ -112,6 +120,17 @@ train,privacy,빛 완전히 막아
 train,privacy,전부 막아줘
 train,privacy,사생활 보호해줘
 train,privacy,밝기 최소로
+train,privacy,영화 볼 거야
+train,privacy,영화 보자
+train,privacy,잘 거야
+train,privacy,이제 잘게
+train,privacy,옷 갈아입을 거야
+train,privacy,옷 갈아입을게
+train,privacy,손님 왔어
+train,privacy,샤워하고 나왔어
+train,privacy,밖에서 안 보였으면 좋겠어
+train,privacy,낮잠 잘래
+train,privacy,화상 회의 할 거야
 train,max_bright,완전 투명하게
 train,max_bright,최대로 밝게
 train,max_bright,제일 밝게 해줘
@@ -138,6 +157,14 @@ train,max_bright,가림 해제
 train,max_bright,가리지 마
 train,max_bright,다 투명하게 해 줘
 train,max_bright,밝기 최대로
+train,max_bright,책 읽을 거야
+train,max_bright,공부할 거야
+train,max_bright,일어났어
+train,max_bright,아침이다
+train,max_bright,화분에 햇빛 좀 쬐게 해줘
+train,max_bright,청소할 거야
+train,max_bright,밖 풍경 보고 싶어
+train,max_bright,사진 찍을 거야
 train,auto,자동으로 해줘
 train,auto,자동 모드
 train,auto,알아서 해줘
@@ -164,6 +191,10 @@ train,auto,자동
 train,auto,자동 제어
 train,auto,ai 모드 켜줘
 train,auto,인공지능이 알아서 해
+train,auto,나갔다 올게
+train,auto,외출할게
+train,auto,이제 신경 안 쓸래
+train,auto,평소처럼 해줘
 train,status,지금 몇 단계야
 train,status,현재 단계 알려줘
 train,status,지금 밝기 어때
@@ -190,6 +221,8 @@ train,status,지금 수동이야
 train,status,럭스 알려줘
 train,status,지금 얼마나 밝아
 train,status,조도 알려줘
+train,status,지금 창문 어떻게 돼 있어
+train,status,필름 켜져 있어
 train,other,안녕
 train,other,안녕하세요
 train,other,고마워
@@ -221,6 +254,10 @@ train,other,지금 날씨 어때
 train,other,지금 뭐 하고 있어
 train,other,몇 시 몇 분이야
 train,other,헬로
+train,other,고마워 라이트큐
+train,other,배고프다
+train,other,오늘 며칠이야
+train,other,재밌다
 test,darker,와 진짜 눈부시다
 test,darker,밝기 조금만 줄여
 test,darker,햇살이 너무 강하네

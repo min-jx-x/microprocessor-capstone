@@ -1,9 +1,9 @@
 {
- "trained_at": "2026-10-31T07:25:33",
- "train_n": 222,
+ "trained_at": "2026-10-31T12:08:20",
+ "train_n": 259,
  "test_n": 48,
- "features": 1193,
- "test_accuracy": 0.917,
+ "features": 1502,
+ "test_accuracy": 0.875,
  "matches_sklearn": true,
  "labels": [
   "auto",
@@ -58,10 +58,10 @@
   ],
   [
    0,
+   1,
    0,
    0,
-   0,
-   5,
+   4,
    0,
    0,
    1
@@ -92,9 +92,9 @@
    0,
    0,
    0,
+   1,
    0,
-   0,
-   6
+   5
   ]
  ],
  "errors": [
@@ -114,16 +114,26 @@
    "pred": "darker"
   },
   {
+   "text": "무슨 모드야",
+   "true": "status",
+   "pred": "privacy"
+  },
+  {
    "text": "지금 몇 시지",
    "true": "other",
    "pred": "status"
+  },
+  {
+   "text": "하이",
+   "true": "other",
+   "pred": "brighter"
   }
  ],
  "thresholds": [
   {
    "threshold": 0.3,
-   "coverage": 0.854,
-   "accuracy_when_handled": 0.902
+   "coverage": 0.875,
+   "accuracy_when_handled": 0.905
   },
   {
    "threshold": 0.4,
@@ -132,18 +142,18 @@
   },
   {
    "threshold": 0.5,
-   "coverage": 0.771,
-   "accuracy_when_handled": 0.919
+   "coverage": 0.792,
+   "accuracy_when_handled": 0.895
   },
   {
    "threshold": 0.6,
-   "coverage": 0.688,
-   "accuracy_when_handled": 0.909
+   "coverage": 0.667,
+   "accuracy_when_handled": 0.906
   },
   {
    "threshold": 0.7,
-   "coverage": 0.604,
-   "accuracy_when_handled": 0.931
+   "coverage": 0.542,
+   "accuracy_when_handled": 0.962
   }
  ]
 }

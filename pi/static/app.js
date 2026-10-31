@@ -301,9 +301,7 @@ async function sendVoice(text) {
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || r.status);
-    box.textContent = d.reply;
-    box.classList.toggle("fail", d.source === "none" || d.action === "cooldown");
-    speak(d.reply);
+    showResult(d);
     $("voice-text").value = "";
     refresh();
   } catch (e) {
@@ -317,8 +315,10 @@ function renderVoice(v) {
   const s = v.status;
   $("voice-engine").textContent = !s.model && !s.llm ? "모델 없음"
     : (s.model ? "분류기" : "") + (s.model && s.llm ? " + " : "") + (s.llm ? "Gemini" : "")
-      + (s.llm && s.llm_error ? ` (LLM: ${s.llm_error})` : "");
+      + (s.llm && s.llm_error ? ` (LLM: ${s.llm_error})` : "")
+      + (s.stt ? " · 음성: Whisper" : "");
   setSwitch($("voice-learn"), s.learn);
+  updateMic(s);
   const key = v.recent.map((r) => r.id).join("|");
   if (key === voiceKey) return;
   voiceKey = key;
@@ -340,51 +340,225 @@ $("voice-text").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e
 $("voice-learn").addEventListener("click", () =>
   post("/api/voice/learn", { enabled: !(last && last.voice && last.voice.status.learn) }));
 
-// 마이크 버튼: 누르고 있는 동안만 듣는다 (부스 소음에서 엉뚱한 말이 들어가지 않게)
+// ---------- 마이크 ----------
+// 누르고 있는 동안만 듣는다 (부스 소음에서 엉뚱한 말이 들어가지 않게). 방식은 두 가지:
+//  ① Pi 음성 인식(whisper.cpp, 오프라인): 녹음 → WAV(16kHz) → /api/voice/audio. 서버가 켜져 있으면 이것을 쓴다
+//  ② 브라우저 음성 인식(Web Speech, 대개 인터넷 필요): ①을 못 쓸 때
+// 둘 다 HTTPS나 localhost에서만 된다 (브라우저 규칙). http로 들어온 휴대폰에는 HTTPS 주소를 안내한다.
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SR && window.isSecureContext) {
-  const mic = $("mic");
-  mic.hidden = false;
-  $("voice-hint").textContent = "버튼을 누른 채로 말하고 떼면 보냅니다. 입력칸에 직접 써도 됩니다";
-  let rec = null, heard = "", useLocal = false;
-  const start = (e) => {
-    e.preventDefault();
-    if (rec) return;
-    heard = "";
-    rec = new SR();
-    rec.lang = "ko-KR";
-    rec.interimResults = true;
-    rec.maxAlternatives = 1;
-    if (useLocal && "processLocally" in rec) rec.processLocally = true;   // 인터넷이 없을 때 기기 안 인식 시도
-    rec.onresult = (ev) => {
-      heard = Array.from(ev.results).map((x) => x[0].transcript).join("");
-      $("voice-text").value = heard;
-    };
-    rec.onerror = (ev) => {
-      if (ev.error === "network" && "processLocally" in rec && !useLocal) {
-        useLocal = true;
-        $("voice-reply").textContent = "인터넷이 없어 기기 안 인식으로 바꿨어요. 다시 눌러 주세요";
-      } else if (ev.error !== "no-speech" && ev.error !== "aborted") {
-        $("voice-reply").textContent = "음성 인식 오류: " + ev.error + " (입력칸을 써 주세요)";
-      }
-    };
-    rec.onend = () => {
-      mic.classList.remove("on");
-      mic.textContent = "누르고 있는 동안 말하기";
-      rec = null;
-      if (heard) sendVoice(heard);
-    };
-    mic.classList.add("on");
-    mic.textContent = "듣는 중… 다 말하면 떼세요";
-    try { rec.start(); } catch (err) { rec = null; mic.classList.remove("on"); }
-  };
-  const stop = () => { if (rec) rec.stop(); };
-  mic.addEventListener("pointerdown", start);
-  mic.addEventListener("pointerup", stop);
-  mic.addEventListener("pointerleave", stop);
-  mic.addEventListener("pointercancel", stop);
-  mic.addEventListener("contextmenu", (e) => e.preventDefault());
+const CAN_RECORD = window.isSecureContext && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+const MAX_REC_S = 8;
+let micMode = null;           // "whisper" | "browser" | null
+let micBusy = false;
+
+function showResult(d) {
+  const box = $("voice-reply");
+  box.textContent = (d.heard ? `"${d.heard}" → ` : "") + d.reply;
+  box.classList.toggle("fail", d.source === "none" || d.action === "cooldown");
+  speak(d.reply);
 }
+
+function micIdle() {
+  const mic = $("mic");
+  mic.classList.remove("on");
+  mic.textContent = micMode === "whisper" ? "누르고 있는 동안 말하기 (Pi 음성 인식)" : "누르고 있는 동안 말하기";
+}
+
+function updateMic(s) {
+  const mode = CAN_RECORD && s.stt ? "whisper" : (SR && window.isSecureContext ? "browser" : null);
+  const hint = $("voice-hint");
+  if (mode !== micMode && !micBusy) {
+    micMode = mode;
+    $("mic").hidden = !mode;
+    micIdle();
+  }
+  if (mode) {
+    hint.textContent = "버튼을 누른 채로 말하고 떼면 보냅니다. 입력칸에 직접 써도 됩니다";
+  } else if (!window.isSecureContext && s.stt && s.https_port) {
+    // http로 들어온 휴대폰: 마이크를 쓰려면 HTTPS 주소로 (처음 한 번 '안전하지 않음' → 계속)
+    const url = `https://${location.hostname}:${s.https_port}`;
+    hint.replaceChildren("마이크로 말하려면 ", Object.assign(document.createElement("a"), { href: url, textContent: url }),
+      " 로 접속하세요 (경고가 뜨면 고급 → 계속). 지금은 키보드 마이크로 입력해도 됩니다");
+  } else {
+    hint.textContent = "휴대폰은 입력칸을 누르고 키보드의 마이크 버튼으로 말해도 됩니다";
+  }
+}
+
+// --- ① Pi 음성 인식: 녹음해서 WAV로 보낸다 ---
+function encodeWav16k(chunks, rate) {
+  const len = chunks.reduce((n, c) => n + c.length, 0);
+  const all = new Float32Array(len);
+  let o = 0, peak = 0;
+  for (const c of chunks) { all.set(c, o); o += c.length; }
+  for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(all[i]));
+  const ratio = rate / 16000, n = Math.floor(len / ratio);
+  const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const str = (p, s) => { for (let i = 0; i < s.length; i++) v.setUint8(p + i, s.charCodeAt(i)); };
+  str(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); str(8, "WAVE"); str(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, "data"); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) {            // 구간 평균으로 16kHz로 낮춘다
+    const s = Math.floor(i * ratio), e = Math.max(s + 1, Math.min(len, Math.floor((i + 1) * ratio)));
+    let sum = 0;
+    for (let j = s; j < e; j++) sum += all[j];
+    v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, sum / (e - s))) * 0x7fff, true);
+  }
+  return { blob: new Blob([buf], { type: "audio/wav" }), seconds: len / rate, peak };
+}
+
+// 마이크는 처음 누를 때 한 번 켜고 계속 열어 둔다 (누를 때마다 켜면 0.1~0.3초 늦어 첫 글자가 잘린다: "눈부셔" → "무조").
+// 누르기 직전 PREROLL_S초도 버퍼에 들고 있다가 녹음 앞에 붙인다. 화면을 벗어나면 마이크를 끈다.
+const PREROLL_S = 0.5;
+let live = null;              // {ctx, stream, src, proc, ring, ringLen, recording, timer}
+let pressed = false;
+
+function micRelease() {
+  if (!live) return;
+  try { live.proc.disconnect(); live.src.disconnect(); } catch (e) {}
+  live.stream.getTracks().forEach((t) => t.stop());
+  live.ctx.close();
+  live = null;
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden && !pressed) micRelease(); });
+
+async function ensureMic() {
+  if (live) {
+    if (live.ctx.state === "suspended") await live.ctx.resume();
+    return live;
+  }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC();                     // 누른 순간(사용자 동작 안)에 만들어야 iOS에서 소리가 들어온다
+  ctx.resume();
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+  } catch (e) {
+    ctx.close();
+    throw new Error("마이크 권한이 없어요");
+  }
+  const m = { ctx, stream, ring: [], ringLen: 0, recording: null, timer: null };
+  m.src = ctx.createMediaStreamSource(stream);
+  m.proc = ctx.createScriptProcessor(4096, 1, 1);
+  m.proc.onaudioprocess = (e) => {
+    const d = new Float32Array(e.inputBuffer.getChannelData(0));
+    if (m.recording) { m.recording.push(d); return; }
+    m.ring.push(d);
+    m.ringLen += d.length;
+    while (m.ring.length > 1 && m.ringLen - m.ring[0].length > ctx.sampleRate * PREROLL_S) m.ringLen -= m.ring.shift().length;
+  };
+  m.src.connect(m.proc);
+  m.proc.connect(ctx.destination);
+  live = m;
+  return m;
+}
+
+async function recStart() {
+  const m = await ensureMic();
+  if (!pressed) {                           // 처음 권한 창이 떠 있는 동안 손을 뗀 경우: 마이크만 켜 두고 녹음은 안 함
+    $("voice-reply").textContent = "마이크 준비 완료. 다시 누르고 말해 주세요";
+    return;
+  }
+  m.recording = m.ring.slice();             // 누르기 직전 0.5초부터
+  m.ring = [];
+  m.ringLen = 0;
+  m.timer = setTimeout(recStop, MAX_REC_S * 1000);
+}
+
+async function recStop() {
+  if (!live || !live.recording) return;
+  const chunks = live.recording;
+  live.recording = null;
+  clearTimeout(live.timer);
+  const rate = live.ctx.sampleRate;
+  const box = $("voice-reply");
+  box.classList.remove("fail");
+  const wav = encodeWav16k(chunks, rate);
+  if (wav.seconds < 0.6 || wav.peak < 0.02) {
+    box.textContent = "소리가 거의 안 들어왔어요. 버튼을 누른 채로 말해 주세요";
+    box.classList.add("fail");
+    return;
+  }
+  box.textContent = "알아듣는 중…";
+  const form = new FormData();
+  form.append("audio", wav.blob, "voice.wav");
+  form.append("device", $("voice-device").value.trim());
+  try {
+    const res = await fetch("/api/voice/audio", { method: "POST", body: form });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || res.status);
+    showResult(d);
+    refresh();
+  } catch (e) {
+    box.textContent = "음성 인식 실패: " + e.message + " (입력칸을 써 주세요)";
+    box.classList.add("fail");
+  }
+}
+
+// --- ② 브라우저 음성 인식 ---
+let srec = null, heard = "", useLocal = false;
+function srStart() {
+  heard = "";
+  srec = new SR();
+  srec.lang = "ko-KR";
+  srec.interimResults = true;
+  srec.maxAlternatives = 1;
+  if (useLocal && "processLocally" in srec) srec.processLocally = true;   // 인터넷이 없을 때 기기 안 인식 시도
+  srec.onresult = (ev) => {
+    heard = Array.from(ev.results).map((x) => x[0].transcript).join("");
+    $("voice-text").value = heard;
+  };
+  srec.onerror = (ev) => {
+    if (ev.error === "network" && "processLocally" in srec && !useLocal) {
+      useLocal = true;
+      $("voice-reply").textContent = "인터넷이 없어 기기 안 인식으로 바꿨어요. 다시 눌러 주세요";
+    } else if (ev.error !== "no-speech" && ev.error !== "aborted") {
+      $("voice-reply").textContent = "음성 인식 오류: " + ev.error + " (입력칸을 써 주세요)";
+    }
+  };
+  srec.onend = () => {
+    srec = null;
+    micBusy = false;
+    micIdle();
+    if (heard) sendVoice(heard);
+  };
+  srec.start();
+}
+
+// --- 버튼 ---
+const mic = $("mic");
+mic.addEventListener("pointerdown", async (e) => {
+  e.preventDefault();
+  if (micBusy || !micMode) return;
+  micBusy = true;
+  pressed = true;
+  mic.classList.add("on");
+  mic.textContent = "듣는 중… 다 말하면 떼세요";
+  try {
+    if (micMode === "whisper") await recStart();
+    else srStart();
+  } catch (err) {
+    micBusy = false;
+    micIdle();
+    $("voice-reply").textContent = err.message;
+    $("voice-reply").classList.add("fail");
+  }
+});
+const micUp = async () => {
+  pressed = false;
+  if (!micBusy) return;
+  if (micMode === "whisper") {
+    micIdle();
+    await recStop();
+    micBusy = false;
+  } else if (srec) {
+    srec.stop();                            // onend에서 정리
+  }
+};
+mic.addEventListener("pointerup", micUp);
+mic.addEventListener("pointerleave", micUp);
+mic.addEventListener("pointercancel", micUp);
+mic.addEventListener("contextmenu", (e) => e.preventDefault());
 
 syncTime();
 refresh();

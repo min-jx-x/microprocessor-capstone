@@ -141,3 +141,22 @@ bash deploy/install_service.sh "--real --start 11:00 --speed 0"   # 서비스 �
 - 모델 바꾸기: 같은 파일에 `LIGHTQ_LLM_MODEL=모델이름` (기본 `gemini-3.1-flash-lite`)
 - 키 확인(노트북 cmd): `set LIGHTQ_LLM_KEY=키` → `python -m pi.voice.evaluate --llm --extra "영화 볼 거야"`
 - 웹 음성 카드 오른쪽 위가 "분류기 + Gemini"면 키가 적용된 것. 괄호 안에 LLM 오류가 보이면 인터넷이나 키 확인
+
+## 11. Pi 음성 인식 (whisper.cpp, 인터넷 없이)
+
+휴대폰·노트북 웹의 마이크 버튼으로 말하면 Pi가 직접 글자로 바꿉니다. 설치할 때만 인터넷이 필요합니다.
+
+```bash
+bash deploy/hotspot.sh off                      # 설치하는 동안 인터넷 Wi-Fi 사용
+bash deploy/setup_whisper.sh                    # 빌드 + base-q8_0 모델 + 서비스 lightq-whisper (5~15분, 확인 필요)
+bash deploy/make_cert.sh                        # 휴대폰 마이크용 HTTPS 인증서
+bash deploy/install_service.sh "--real --start 11:00 --speed 0 --no-learn"   # --no-learn: 재부팅해도 수동 조절 학습 꺼진 채 시작
+.venv/bin/python -m pi.voice.stt_check          # "whisper 서버 ...: 켜짐" 확인
+bash deploy/hotspot.sh on 비밀번호
+```
+
+- 휴대폰: Wi-Fi `LightQ` → `https://10.42.0.1:5443` → "안전하지 않음" 경고에서 고급 → 계속 → 마이크 허용. http 주소로 들어오면 화면에 이 주소가 안내됩니다
+- 부스 QR은 `https://10.42.0.1:5443`으로 만들고, 옆에 "경고가 뜨면 고급 → 계속"을 적어 두세요
+- 느리면 작은 모델: `bash deploy/setup_whisper.sh tiny-q8_0`, 정확도가 부족하면 큰 모델: `bash deploy/setup_whisper.sh small-q5_1` (속도 확인 필요)
+- 정확도 확인: `/etc/default/lightq`에 `LIGHTQ_VOICE_KEEP=20` 한 줄을 추가하고 재시작 → 말해 본 뒤 `.venv/bin/python -m pi.voice.stt_check pi/data/voice_audio/*.wav`. 확인 후 그 줄은 지우기 (관람객 목소리 저장 방지)
+- 상태: `systemctl status lightq-whisper`, 로그: `journalctl -u lightq-whisper -f`
