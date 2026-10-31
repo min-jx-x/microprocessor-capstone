@@ -176,5 +176,5 @@ VOICE_LOG_SIZE = 20            # 화면에 보여 줄 최근 명령 수
 VOICE_LEARN = os.environ.get("LIGHTQ_VOICE_LEARN", "0") == "1"   # 음성 명령을 선호 학습에 쓸지 (시연 기본: 끔)
 # LLM(Gemini) 보조 판단. 키는 환경변수 LIGHTQ_LLM_KEY 로만 넣는다 (레포에 넣지 않음)
 VOICE_LLM_MODEL = "gemini-3.1-flash-lite"   # 환경변수 LIGHTQ_LLM_MODEL 로 바꿀 수 있음
-VOICE_LLM_TIMEOUT_S = 3.0      # 이 안에 답이 없으면 포기
+VOICE_LLM_TIMEOUT_S = 5.0      # 이 안에 답이 없으면 포기하고 분류기 답으로 (3초일 때 15번 중 2번 시간 초과)
 VOICE_LLM_MAX_PER_MIN = 10     # 분당 최대 호출 (무료 등급 한도 보호)

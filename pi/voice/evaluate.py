@@ -22,6 +22,9 @@ from pi.voice.text import extract_level
 STATE = {"level": 1, "mode": "auto", "lux": 600}
 
 
+FAILS = []      # LLM에 물었지만 못 쓴 경우 (문장, 오류)
+
+
 def decide(model, llm, text):
     intent, conf = model.predict(text)
     confident = intent != "other" and conf >= config.VOICE_MIN_CONF
@@ -31,6 +34,7 @@ def decide(model, llm, text):
         r = llm.interpret(text, STATE)
         if r is not None:
             return ("other" if r["action"] == "none" else r["action"]), "llm"
+        FAILS.append((text, llm.last_error))
     # handler.py와 같은 규칙: LLM을 못 쓰면 낮은 기준으로 분류기 답을 쓴다
     if intent != "other" and conf >= config.VOICE_MIN_CONF_OFFLINE and not (intent == "set_level" and extract_level(text) is None):
         return intent, "model"
@@ -64,12 +68,15 @@ def main() -> None:
     acc, _, ms = run(model, None, rows)
     print(f"  정확도 {acc:.1%}, 평균 {ms:.1f}ms")
     if args.llm:
+        config.VOICE_LLM_MAX_PER_MIN = 10_000   # 평가할 때는 앱의 분당 호출 제한을 끈다 (실제 서버는 그대로 10)
         llm = GeminiFallback()
         if not llm.enabled:
             raise SystemExit("LIGHTQ_LLM_KEY 환경변수가 없음")
         print(f"[하이브리드: 분류기 + {llm.model}]")
         acc, calls, ms = run(model, llm, rows)
-        print(f"  정확도 {acc:.1%}, LLM 호출 {calls}회, 평균 {ms:.0f}ms, 마지막 LLM 오류: {llm.last_error}")
+        print(f"  정확도 {acc:.1%}, LLM 성공 {calls}회, 실패 {len(FAILS)}회, 문장당 평균 {ms:.0f}ms")
+        for text, err in FAILS:
+            print(f"    LLM 실패 '{text}': {err}")
         for text in args.extra:
             t0 = time.perf_counter()
             r = llm.interpret(text, STATE)
