@@ -1,0 +1,149 @@
+{
+ "trained_at": "2026-10-31T07:25:33",
+ "train_n": 222,
+ "test_n": 48,
+ "features": 1193,
+ "test_accuracy": 0.917,
+ "matches_sklearn": true,
+ "labels": [
+  "auto",
+  "brighter",
+  "darker",
+  "max_bright",
+  "other",
+  "privacy",
+  "set_level",
+  "status"
+ ],
+ "confusion": [
+  [
+   6,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   4,
+   2,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   5,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   6,
+   0,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   0,
+   5,
+   0,
+   0,
+   1
+  ],
+  [
+   0,
+   0,
+   0,
+   0,
+   0,
+   6,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   6,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   6
+  ]
+ ],
+ "errors": [
+  {
+   "text": "좀 덜 환하게",
+   "true": "darker",
+   "pred": "brighter"
+  },
+  {
+   "text": "아 너무 컴컴하다",
+   "true": "brighter",
+   "pred": "darker"
+  },
+  {
+   "text": "햇살 좀 들여보내 줘",
+   "true": "brighter",
+   "pred": "darker"
+  },
+  {
+   "text": "지금 몇 시지",
+   "true": "other",
+   "pred": "status"
+  }
+ ],
+ "thresholds": [
+  {
+   "threshold": 0.3,
+   "coverage": 0.854,
+   "accuracy_when_handled": 0.902
+  },
+  {
+   "threshold": 0.4,
+   "coverage": 0.812,
+   "accuracy_when_handled": 0.897
+  },
+  {
+   "threshold": 0.5,
+   "coverage": 0.771,
+   "accuracy_when_handled": 0.919
+  },
+  {
+   "threshold": 0.6,
+   "coverage": 0.688,
+   "accuracy_when_handled": 0.909
+  },
+  {
+   "threshold": 0.7,
+   "coverage": 0.604,
+   "accuracy_when_handled": 0.931
+  }
+ ]
+}

@@ -117,3 +117,27 @@ bash deploy/install_service.sh "--real --start 11:00 --speed 0"   # 부팅하면
 | GPIO 권한 오류 | `setup_pi.sh` 후 재부팅했는지 (`groups`에 gpio, i2c가 보여야 함) |
 | 저전압 경고, 갑자기 재부팅 | 전원 어댑터가 5V 5A인지 |
 | 웹은 뜨는데 단계가 안 바뀜 | 화면 빨간 경고(센서 실패) 확인 → 5단계 다시 |
+
+## 10. 음성 명령 LLM 키 (선택)
+
+키가 없어도 음성 명령은 분류기만으로 동작합니다. 키를 넣으면 분류기가 애매한 문장만 Gemini에 묻습니다 (인터넷 필요).
+
+```bash
+sudo nano /etc/default/lightq-secrets
+```
+
+```
+LIGHTQ_LLM_KEY=여기에키
+# 예비 키: 위 줄 앞에 #을 붙이고 아래 줄의 #을 지운 뒤 재시작
+# LIGHTQ_LLM_KEY=예비키
+```
+
+```bash
+sudo chmod 600 /etc/default/lightq-secrets
+bash deploy/install_service.sh "--real --start 11:00 --speed 0"   # 서비스 파일을 새로 써서 이 파일을 읽게 함
+```
+
+- 키는 레포·카톡·채팅에 올리지 않습니다. `install_service.sh`는 `/etc/default/lightq`만 덮어쓰고 이 파일은 건드리지 않습니다.
+- 모델 바꾸기: 같은 파일에 `LIGHTQ_LLM_MODEL=모델이름` (기본 `gemini-3.1-flash-lite`)
+- 키 확인(노트북 cmd): `set LIGHTQ_LLM_KEY=키` → `python -m pi.voice.evaluate --llm --extra "영화 볼 거야"`
+- 웹 음성 카드 오른쪽 위가 "분류기 + Gemini"면 키가 적용된 것. 괄호 안에 LLM 오류가 보이면 인터넷이나 키 확인

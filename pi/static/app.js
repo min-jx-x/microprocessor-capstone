@@ -157,6 +157,7 @@ function render(st) {
   $("switches").textContent = st.switches;
   drawChart(st.history, st.sim);
   drawLevels(st.history, st.num_levels);
+  renderVoice(st.voice);
 }
 
 function renderPref(p) {
@@ -262,6 +263,127 @@ function syncTime() {
   const d = new Date(), p = (n) => String(n).padStart(2, "0");
   const local = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
   post("/api/time", { local }).catch(() => {});
+}
+
+// ---------- 음성(문장) 명령 ----------
+// 입력 경로 두 가지: ① 마이크 버튼(브라우저 음성 인식, HTTPS나 localhost에서만) ② 입력칸(휴대폰 키보드 받아쓰기 포함).
+// 어느 쪽이든 문장을 /api/voice 로 보내고, 의도 판단(분류기 → 필요하면 LLM)은 Pi가 한다.
+const SRC = { model: "분류기", llm: "LLM", none: "못 알아들음" };
+let voiceKey = "";
+
+function store(key, value) {               // 이 브라우저에만 기억. 저장소를 못 쓰면 무시
+  try {
+    if (value !== undefined) localStorage.setItem(key, value);
+    return localStorage.getItem(key);
+  } catch (e) { return null; }
+}
+$("voice-device").value = store("lightq-device") || "";
+$("voice-device").addEventListener("change", () => store("lightq-device", $("voice-device").value.trim()));
+
+function speak(text) {                     // 응답을 소리로 (명령을 보낸 기기에서만)
+  if (!("speechSynthesis" in window) || !text) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "ko-KR";
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+
+async function sendVoice(text) {
+  text = (text || "").trim();
+  if (!text) return;
+  const box = $("voice-reply");
+  box.classList.remove("fail");
+  box.textContent = "판단 중…";
+  try {
+    const r = await fetch("/api/voice", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, device: $("voice-device").value.trim() }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.status);
+    box.textContent = d.reply;
+    box.classList.toggle("fail", d.source === "none" || d.action === "cooldown");
+    speak(d.reply);
+    $("voice-text").value = "";
+    refresh();
+  } catch (e) {
+    box.textContent = "보내기 실패: " + e.message;
+    box.classList.add("fail");
+  }
+}
+
+function renderVoice(v) {
+  if (!v) return;
+  const s = v.status;
+  $("voice-engine").textContent = !s.model && !s.llm ? "모델 없음"
+    : (s.model ? "분류기" : "") + (s.model && s.llm ? " + " : "") + (s.llm ? "Gemini" : "")
+      + (s.llm && s.llm_error ? ` (LLM: ${s.llm_error})` : "");
+  setSwitch($("voice-learn"), s.learn);
+  const key = v.recent.map((r) => r.id).join("|");
+  if (key === voiceKey) return;
+  voiceKey = key;
+  // 관람객이 입력한 문장이 들어가므로 HTML로 넣지 않고 textContent로만 만든다
+  $("voice-log").replaceChildren(...v.recent.map((r) => {
+    const li = document.createElement("li");
+    const who = document.createElement("b");
+    who.textContent = `${r.device}: "${r.text}"`;
+    const src = document.createElement("span");
+    src.className = "src";
+    src.textContent = SRC[r.source] + (r.source === "model" ? ` ${Math.round(r.confidence * 100)}%` : "");
+    li.append(`${r.time.slice(0, 5)} `, who, ` → ${r.applied ? `${r.level_before}→${r.level_after}단계` : r.reply}`, src);
+    return li;
+  }));
+}
+
+$("voice-send").addEventListener("click", () => sendVoice($("voice-text").value));
+$("voice-text").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) sendVoice($("voice-text").value); });
+$("voice-learn").addEventListener("click", () =>
+  post("/api/voice/learn", { enabled: !(last && last.voice && last.voice.status.learn) }));
+
+// 마이크 버튼: 누르고 있는 동안만 듣는다 (부스 소음에서 엉뚱한 말이 들어가지 않게)
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SR && window.isSecureContext) {
+  const mic = $("mic");
+  mic.hidden = false;
+  $("voice-hint").textContent = "버튼을 누른 채로 말하고 떼면 보냅니다. 입력칸에 직접 써도 됩니다";
+  let rec = null, heard = "", useLocal = false;
+  const start = (e) => {
+    e.preventDefault();
+    if (rec) return;
+    heard = "";
+    rec = new SR();
+    rec.lang = "ko-KR";
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    if (useLocal && "processLocally" in rec) rec.processLocally = true;   // 인터넷이 없을 때 기기 안 인식 시도
+    rec.onresult = (ev) => {
+      heard = Array.from(ev.results).map((x) => x[0].transcript).join("");
+      $("voice-text").value = heard;
+    };
+    rec.onerror = (ev) => {
+      if (ev.error === "network" && "processLocally" in rec && !useLocal) {
+        useLocal = true;
+        $("voice-reply").textContent = "인터넷이 없어 기기 안 인식으로 바꿨어요. 다시 눌러 주세요";
+      } else if (ev.error !== "no-speech" && ev.error !== "aborted") {
+        $("voice-reply").textContent = "음성 인식 오류: " + ev.error + " (입력칸을 써 주세요)";
+      }
+    };
+    rec.onend = () => {
+      mic.classList.remove("on");
+      mic.textContent = "누르고 있는 동안 말하기";
+      rec = null;
+      if (heard) sendVoice(heard);
+    };
+    mic.classList.add("on");
+    mic.textContent = "듣는 중… 다 말하면 떼세요";
+    try { rec.start(); } catch (err) { rec = null; mic.classList.remove("on"); }
+  };
+  const stop = () => { if (rec) rec.stop(); };
+  mic.addEventListener("pointerdown", start);
+  mic.addEventListener("pointerup", stop);
+  mic.addEventListener("pointerleave", stop);
+  mic.addEventListener("pointercancel", stop);
+  mic.addEventListener("contextmenu", (e) => e.preventDefault());
 }
 
 syncTime();

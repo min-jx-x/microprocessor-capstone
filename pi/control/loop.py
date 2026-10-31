@@ -165,9 +165,10 @@ class Controller:
         self.driver.apply(0)
 
     # ------------------------------------------------------------------ 웹 명령
-    def set_manual(self, level: int) -> None:
+    def set_manual(self, level: int, learn: bool = True) -> None:
         """사용자가 단계를 직접 고름 → 수동 모드로 바뀌고 즉시 적용.
-        이 기록(event='manual')은 나중에 개인 선호 보정의 학습 신호로 쓴다."""
+        이 기록(event='manual')은 나중에 개인 선호 보정의 학습 신호로 쓴다.
+        learn=False: 이번 조작은 선호 학습에 쓰지 않는다 (예: 관람객 음성 명령)."""
         if not 0 <= level < config.NUM_LEVELS:
             raise ValueError("단계 범위 밖")
         with self.lock:
@@ -178,8 +179,10 @@ class Controller:
             if prev != level:
                 self.switches += 1
             self.stab.reset()
-            if self.learn_enabled:      # 다음 측정부터 선호 조도 수집
+            if self.learn_enabled and learn:    # 다음 측정부터 선호 조도 수집
                 self._pref_pending = {"level": level, "samples": []}
+            elif not learn:
+                self._pref_pending = None       # 이전 조작의 측정도 버린다 (섞이지 않게)
             lux, hour = self.lux, self.clock.hour()
             target = self.info.get("target")
         if self.store is not None and lux is not None:

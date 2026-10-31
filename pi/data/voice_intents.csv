@@ -1,0 +1,271 @@
+split,intent,text
+train,darker,너무 밝아
+train,darker,너무 밝다
+train,darker,눈부셔
+train,darker,눈이 부셔
+train,darker,좀 어둡게 해줘
+train,darker,어둡게 해 줘
+train,darker,조금만 어둡게
+train,darker,빛 좀 줄여줘
+train,darker,햇빛이 너무 세
+train,darker,햇볕 너무 강해
+train,darker,좀 가려줘
+train,darker,살짝 가려 줘
+train,darker,밝기 낮춰줘
+train,darker,밝기 좀 내려줘
+train,darker,한 단계 어둡게
+train,darker,한 단계 낮춰
+train,darker,단계 내려줘
+train,darker,너무 환해
+train,darker,눈 아파
+train,darker,빛이 너무 많이 들어와
+train,darker,덜 밝게 해줘
+train,darker,조금 흐리게 해줘
+train,darker,뿌옇게 해 줘
+train,darker,투명도 낮춰줘
+train,darker,더운데 너무 밝아
+train,darker,햇살 때문에 화면이 안 보여
+train,darker,좀 덜 밝았으면 좋겠어
+train,darker,햇볕 좀 막아줘
+train,darker,빛 조금 가려줘
+train,darker,조금 덜 밝게
+train,brighter,너무 어두워
+train,brighter,어둡다
+train,brighter,좀 밝게 해줘
+train,brighter,밝게 해 줘
+train,brighter,조금만 밝게
+train,brighter,빛 좀 더 들어오게 해줘
+train,brighter,햇빛 들어오게 해줘
+train,brighter,밝기 올려줘
+train,brighter,밝기 좀 높여줘
+train,brighter,한 단계 밝게
+train,brighter,한 단계 올려
+train,brighter,단계 올려줘
+train,brighter,잘 안 보여
+train,brighter,글자가 안 보여
+train,brighter,너무 침침해
+train,brighter,어두컴컴해
+train,brighter,더 밝게
+train,brighter,투명하게 좀 해줘
+train,brighter,조금 더 투명하게
+train,brighter,빛 좀 늘려줘
+train,brighter,밖이 잘 안 보여
+train,brighter,답답해 좀 밝게
+train,brighter,환하게 해줘
+train,brighter,덜 어둡게
+train,brighter,좀 더 밝았으면 좋겠어
+train,brighter,방이 너무 어둡네
+train,brighter,빛이 부족해
+train,brighter,햇볕 좀 들게 해줘
+train,brighter,깜깜해
+train,brighter,캄캄하다
+train,set_level,0단계로 해줘
+train,set_level,1단계로 바꿔줘
+train,set_level,2단계로 해 줘
+train,set_level,영 단계로
+train,set_level,일 단계로 바꿔
+train,set_level,이 단계로 해줘
+train,set_level,단계 1로 맞춰줘
+train,set_level,2단계
+train,set_level,1단계
+train,set_level,0단계
+train,set_level,단계를 2로 바꿔
+train,set_level,레벨 1로 해줘
+train,set_level,레벨 2
+train,set_level,1번으로 해줘
+train,set_level,2번 단계로
+train,set_level,단계 0으로 설정
+train,set_level,1단계로 설정해줘
+train,set_level,2단계로 맞춰 줘
+train,set_level,0으로 맞춰줘
+train,set_level,투과 단계 1
+train,set_level,투과 단계를 2로
+train,set_level,1단계 부탁해
+train,set_level,2단계 해줘
+train,set_level,0단계 해 줘
+train,set_level,단계 1
+train,set_level,1로 해줘
+train,set_level,2로 바꿔
+train,privacy,다 가려줘
+train,privacy,완전히 가려
+train,privacy,사생활 보호 모드
+train,privacy,밖에서 안 보이게 해줘
+train,privacy,불투명하게 해줘
+train,privacy,완전 불투명
+train,privacy,커튼 쳐줘
+train,privacy,블라인드 내려줘
+train,privacy,가림 모드
+train,privacy,프라이버시 모드
+train,privacy,아무도 못 보게
+train,privacy,창문 가려줘
+train,privacy,밖에서 보이지 않게
+train,privacy,제일 어둡게
+train,privacy,가장 어둡게 해줘
+train,privacy,최대로 어둡게
+train,privacy,최소 밝기
+train,privacy,완전히 뿌옇게
+train,privacy,잘 거니까 가려줘
+train,privacy,안 보이게 막아줘
+train,privacy,외부 시선 차단
+train,privacy,완전 차단
+train,privacy,빛 완전히 막아
+train,privacy,전부 막아줘
+train,privacy,사생활 보호해줘
+train,privacy,밝기 최소로
+train,max_bright,완전 투명하게
+train,max_bright,최대로 밝게
+train,max_bright,제일 밝게 해줘
+train,max_bright,가장 밝게
+train,max_bright,최대 밝기
+train,max_bright,다 열어줘
+train,max_bright,완전히 투명하게 해줘
+train,max_bright,전부 투명하게
+train,max_bright,커튼 걷어줘
+train,max_bright,블라인드 올려줘
+train,max_bright,최대로 투명
+train,max_bright,가장 투명하게
+train,max_bright,햇빛 다 들어오게
+train,max_bright,빛 최대로
+train,max_bright,밝기 최대
+train,max_bright,끝까지 밝게
+train,max_bright,완전 밝게
+train,max_bright,투명 모드
+train,max_bright,창문 다 보이게
+train,max_bright,밖이 다 보이게 해줘
+train,max_bright,최고 밝기
+train,max_bright,하나도 안 가리게
+train,max_bright,가림 해제
+train,max_bright,가리지 마
+train,max_bright,다 투명하게 해 줘
+train,max_bright,밝기 최대로
+train,auto,자동으로 해줘
+train,auto,자동 모드
+train,auto,알아서 해줘
+train,auto,알아서 맞춰줘
+train,auto,자동 제어 켜줘
+train,auto,자동으로 바꿔
+train,auto,ai한테 맡길게
+train,auto,에이아이 모드
+train,auto,자동으로 돌려줘
+train,auto,알아서 조절해
+train,auto,스마트 모드
+train,auto,원래대로 자동
+train,auto,자동 켜
+train,auto,수동 끄고 자동
+train,auto,너가 알아서 해
+train,auto,맡길게
+train,auto,자동 조절
+train,auto,자동으로 밝기 맞춰
+train,auto,자동 모드로 돌아가
+train,auto,오토 모드
+train,auto,알아서 판단해
+train,auto,자동으로 해 둬
+train,auto,자동
+train,auto,자동 제어
+train,auto,ai 모드 켜줘
+train,auto,인공지능이 알아서 해
+train,status,지금 몇 단계야
+train,status,현재 단계 알려줘
+train,status,지금 밝기 어때
+train,status,지금 상태 알려줘
+train,status,몇 단계야
+train,status,지금 몇 럭스야
+train,status,조도 얼마야
+train,status,현재 조도
+train,status,지금 자동이야
+train,status,상태 확인
+train,status,지금 어떤 모드야
+train,status,지금 필름 상태
+train,status,현재 밝기 몇이야
+train,status,몇 럭스
+train,status,지금 몇이야
+train,status,단계 확인해줘
+train,status,지금 어떻게 돼 있어
+train,status,현재 설정 알려줘
+train,status,밝기 몇 단계지
+train,status,지금 투명해
+train,status,상태 보여줘
+train,status,현재 모드
+train,status,지금 수동이야
+train,status,럭스 알려줘
+train,status,지금 얼마나 밝아
+train,status,조도 알려줘
+train,other,안녕
+train,other,안녕하세요
+train,other,고마워
+train,other,오늘 날씨 어때
+train,other,배고파
+train,other,노래 틀어줘
+train,other,몇 시야
+train,other,이름이 뭐야
+train,other,뭐해
+train,other,음악 켜줘
+train,other,tv 켜줘
+train,other,에어컨 켜줘
+train,other,알람 맞춰줘
+train,other,잘 자
+train,other,수고했어
+train,other,테스트
+train,other,아아 마이크 테스트
+train,other,ㅋㅋㅋ
+train,other,뭐라고
+train,other,다시
+train,other,좋아
+train,other,네
+train,other,아니
+train,other,라이트큐
+train,other,오늘 학술제 화이팅
+train,other,점심 메뉴 추천해줘
+train,other,지금 몇 시야
+train,other,지금 날씨 어때
+train,other,지금 뭐 하고 있어
+train,other,몇 시 몇 분이야
+train,other,헬로
+test,darker,와 진짜 눈부시다
+test,darker,밝기 조금만 줄여
+test,darker,햇살이 너무 강하네
+test,darker,한 칸 어둡게
+test,darker,좀 덜 환하게
+test,darker,빛을 조금 막아줘
+test,brighter,아 너무 컴컴하다
+test,brighter,밝기 조금만 올려
+test,brighter,한 칸 밝게
+test,brighter,햇살 좀 들여보내 줘
+test,brighter,좀 더 환하게
+test,brighter,책 읽기엔 어두워
+test,set_level,일단계로 해 줘
+test,set_level,단계 2로 설정해
+test,set_level,레벨 0으로
+test,set_level,2번으로 바꿔줘
+test,set_level,투과 1단계
+test,set_level,0단계로 바꿔
+test,privacy,사생활 모드 켜줘
+test,privacy,밖에서 못 보게 해
+test,privacy,제일 뿌옇게
+test,privacy,커튼처럼 가려줘
+test,privacy,완전히 막아 줘
+test,privacy,가장 불투명하게
+test,max_bright,제일 투명하게
+test,max_bright,밝기 최대로 올려
+test,max_bright,커튼 다 걷어
+test,max_bright,가림 다 풀어줘
+test,max_bright,끝까지 투명하게
+test,max_bright,빛 다 들여보내
+test,auto,이제 알아서 해
+test,auto,자동으로 맞춰 줘
+test,auto,오토로 해
+test,auto,ai가 조절하게 해줘
+test,auto,자동 모드 다시 켜
+test,auto,니가 판단해서 해
+test,status,현재 몇 단계지
+test,status,지금 조도 알려줘
+test,status,무슨 모드야
+test,status,상태 좀 알려줘
+test,status,지금 몇 럭스 나와
+test,status,밝기 지금 어때
+test,other,반가워
+test,other,지금 몇 시지
+test,other,노래 꺼줘
+test,other,땡큐
+test,other,점심 뭐 먹지
+test,other,하이

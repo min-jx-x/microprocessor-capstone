@@ -21,6 +21,9 @@ from pi import config
 from pi.control.loop import Controller
 from pi.control.preference import PreferenceStore
 from pi.storage import LogStore
+from pi.voice.handler import VoiceHandler
+from pi.voice.intent import load_model
+from pi.voice.llm import GeminiFallback
 
 
 def start_time(start: str = None) -> datetime:
@@ -55,9 +58,13 @@ def build_devices(real: bool, speed: float, start: str = None):
     return sensor, relays, clock, outdoor
 
 
-def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False) -> Flask:
-    """time_sync: 휴대폰 시각으로 시계를 맞출지. --start/--speed로 시각을 정한 시연·시뮬레이션에서는 끈다."""
+def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
+               voice: VoiceHandler = None) -> Flask:
+    """time_sync: 휴대폰 시각으로 시계를 맞출지. --start/--speed로 시각을 정한 시연·시뮬레이션에서는 끈다.
+    voice: 문장 명령 처리기. 없으면 기본(의도 분류기 + 키가 있으면 Gemini)으로 만든다."""
     app = Flask(__name__)
+    if voice is None:
+        voice = VoiceHandler(ctrl, load_model(), GeminiFallback())
     app.json.ensure_ascii = False       # 한글 오류 메시지를 그대로 보이게
 
     def body() -> dict:
@@ -73,7 +80,30 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False) -> Fl
 
     @app.get("/api/state")
     def state():
-        return jsonify(ctrl.snapshot())
+        # 음성 명령 기록도 같이 보내서, 다른 기기에서 보낸 명령도 모든 화면에 보이게 한다
+        return jsonify(dict(ctrl.snapshot(), voice={"recent": voice.recent()[:8], "status": voice.status()}))
+
+    # ---- 음성(문장) 명령 ----
+    @app.post("/api/voice")
+    def voice_command():
+        """{"text": "너무 밝아", "device": "폰1"} → 의도 판단 후 단계 변경. 응답에 처리 경로(model/llm/none) 포함."""
+        b = body()
+        try:
+            return jsonify(voice.handle(b.get("text", ""), b.get("device", "")))
+        except ValueError as e:
+            return jsonify(error=str(e)), 400
+
+    @app.get("/api/voice")
+    def voice_info():
+        return jsonify(status=voice.status(), recent=voice.recent())
+
+    @app.post("/api/voice/learn")
+    def voice_learn():
+        value = body().get("enabled")
+        if not isinstance(value, bool):
+            return jsonify(error="enabled는 true 또는 false"), 400
+        voice.set_learning(value)
+        return jsonify(ok=True)
 
     # ---- AI 설명 페이지 ----
     @app.get("/api/ai/explain")
