@@ -108,11 +108,12 @@ def test_cooldown_between_changes(ctrl, model):
 
 
 def test_low_confidence_goes_to_llm(ctrl, model):
-    llm = FakeLLM({"action": "privacy", "level": None, "reply": "영화 보실 때 가릴게요"})
+    # 예문에 없는 애매한 문장 → 분류기가 확신하지 못해 LLM으로 넘어간다
+    llm = FakeLLM({"action": "privacy", "level": None, "reply": "편히 쉬시게 가릴게요"})
     h, _ = make(ctrl, model, llm)
-    r = h.handle("영화 볼 거야")
+    r = h.handle("오늘 기분이 좀 그래")
     assert llm.calls == 1 and r["source"] == "llm" and r["level_after"] == 0
-    assert r["reply"] == "영화 보실 때 가릴게요"
+    assert r["reply"] == "편히 쉬시게 가릴게요"
 
 
 def test_confident_command_skips_llm(ctrl, model):
@@ -125,7 +126,7 @@ def test_confident_command_skips_llm(ctrl, model):
 def test_llm_failure_changes_nothing(ctrl, model):
     h, _ = make(ctrl, model, FakeLLM(None))
     before = ctrl.level
-    r = h.handle("영화 볼 거야")
+    r = h.handle("오늘 기분이 좀 그래")
     assert r["source"] == "none" and not r["applied"] and ctrl.level == before
 
 

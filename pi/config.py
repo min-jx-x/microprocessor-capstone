@@ -138,6 +138,9 @@ else:
 # ---------------------------------------------------------------------------
 WEB_HOST = "0.0.0.0"           # 같은 Wi-Fi(핫스팟)의 휴대폰에서 접속 가능하게
 WEB_PORT = 5000
+WEB_HTTPS_PORT = 5443          # 인증서(deploy/make_cert.sh)가 있으면 이 포트로 HTTPS도 연다 (휴대폰 마이크용)
+TLS_CERT = "pi/data/certs/cert.pem"
+TLS_KEY = "pi/data/certs/key.pem"
 HISTORY_POINTS = 300           # 화면 그래프에 보여줄 최근 기록 개수
 # 핫스팟은 인터넷이 없어 Pi가 시각을 못 맞춘다(RTC 배터리 없으면 부팅 때 틀림).
 # 대시보드를 열면 휴대폰 시각을 보내고, 차이가 이 값(초)보다 크면 그 시각으로 맞춘다.
@@ -178,3 +181,13 @@ VOICE_LEARN = os.environ.get("LIGHTQ_VOICE_LEARN", "0") == "1"   # 음성 명령
 VOICE_LLM_MODEL = "gemini-3.1-flash-lite"   # 환경변수 LIGHTQ_LLM_MODEL 로 바꿀 수 있음
 VOICE_LLM_TIMEOUT_S = 5.0      # 이 안에 답이 없으면 포기하고 분류기 답으로 (3초일 때 15번 중 2번 시간 초과)
 VOICE_LLM_MAX_PER_MIN = 10     # 분당 최대 호출 (무료 등급 한도 보호)
+# 오프라인 음성 인식 (whisper.cpp 서버, deploy/setup_whisper.sh로 설치)
+VOICE_STT_URL = "http://127.0.0.1:8178/inference"   # 환경변수 LIGHTQ_STT_URL 로 바꿀 수 있음
+VOICE_STT_TIMEOUT_S = 15.0     # 글자로 바꾸는 데 이보다 오래 걸리면 포기
+VOICE_STT_CHECK_S = 10.0       # 서버가 켜져 있는지 다시 확인하는 간격
+VOICE_STT_LANG = "ko"
+# 자주 나올 단어를 미리 알려 주면 인식이 나아진다 (빈 문자열이면 끔)
+VOICE_STT_PROMPT = "라이트큐 창문 밝기 명령. 너무 밝아, 어둡게, 밝게, 0단계, 1단계, 2단계, 자동으로, 다 가려 줘."
+VOICE_AUDIO_MAX_BYTES = 1_000_000    # 녹음 파일 최대 크기 (16kHz 모노 약 30초)
+VOICE_AUDIO_DIR = "pi/data/voice_audio"
+VOICE_AUDIO_KEEP = int(os.environ.get("LIGHTQ_VOICE_KEEP", "0"))   # 최근 녹음을 몇 개 남길지 (정확도 확인용, 기본 0 = 저장 안 함)
