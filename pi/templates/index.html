@@ -53,6 +53,28 @@
       <p class="hint">단계를 누르면 수동으로 바뀝니다. 다시 맡기려면 자동 제어를 켜세요.</p>
     </div>
 
+    <div class="card" id="voice-card">
+      <div class="row">
+        <div class="lb">음성 명령</div>
+        <span class="sub" id="voice-engine">-</span>
+      </div>
+      <!-- 마이크 버튼은 브라우저가 음성 인식을 허용할 때만 보인다 (노트북: localhost 접속) -->
+      <button class="mic" id="mic" hidden>누르고 있는 동안 말하기</button>
+      <div class="row add">
+        <input id="voice-text" placeholder="예: 너무 밝아, 2단계로" maxlength="60" enterkeyhint="send" autocomplete="off" aria-label="명령 문장">
+        <button id="voice-send" class="primary">보내기</button>
+      </div>
+      <p class="hint" id="voice-hint">휴대폰은 입력칸을 누르고 키보드의 마이크 버튼으로 말해도 됩니다</p>
+      <div class="voice-reply" id="voice-reply" aria-live="polite"></div>
+      <ul class="voice-log" id="voice-log"></ul>
+      <div class="row add">
+        <input id="voice-device" placeholder="기기 이름 (선택)" maxlength="16" aria-label="기기 이름">
+        <button class="switch" id="voice-learn" role="switch" aria-checked="false" aria-label="음성 명령도 선호 학습에 반영">
+          <span>음성도 학습</span><i></i>
+        </button>
+      </div>
+    </div>
+
     <div class="card">
       <div class="row">
         <div class="lb">판단 방식</div>

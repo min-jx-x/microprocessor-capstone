@@ -161,3 +161,20 @@ PREF_PATH = os.environ.get("LIGHTQ_PREF", "pi/data/preferences.json")
 PREF_ALPHA = 0.3               # 수동 조작 한 번에 목표를 차이의 30%만큼 옮김
 PREF_MAX = 0.3                 # 목표 보정은 기본값의 ±30% 안
 PREF_SETTLE = 3                # 수동으로 바꾼 뒤 몇 회(초) 측정해서 선호 조도로 볼지
+
+# ---------------------------------------------------------------------------
+# 음성(문장) 명령 (pi/voice/)
+# ---------------------------------------------------------------------------
+VOICE_DATA_PATH = "pi/data/voice_intents.csv"      # 예문 (split, intent, text)
+VOICE_MODEL_PATH = "pi/data/intent_model.json"     # 노트북에서 python -m pi.voice.train 으로 만든 의도 분류기
+VOICE_REPORT_PATH = "pi/data/voice_report.json"    # 시험 예문 정확도 등
+VOICE_MIN_CONF = 0.6           # 분류기 확신도가 이보다 낮으면 LLM에 묻는다 (voice_report.json의 thresholds 참고)
+VOICE_MIN_CONF_OFFLINE = 0.35  # LLM을 못 쓸 때(키·인터넷 없음, 실패)는 이 확신도 이상이면 분류기 답을 그대로 쓴다
+VOICE_COOLDOWN_S = 2.0         # 단계를 바꾸는 음성 명령 사이 최소 간격 (여러 기기가 동시에 보낼 때 깜빡임 방지)
+VOICE_MAX_CHARS = 60           # 문장 길이 제한
+VOICE_LOG_SIZE = 20            # 화면에 보여 줄 최근 명령 수
+VOICE_LEARN = os.environ.get("LIGHTQ_VOICE_LEARN", "0") == "1"   # 음성 명령을 선호 학습에 쓸지 (시연 기본: 끔)
+# LLM(Gemini) 보조 판단. 키는 환경변수 LIGHTQ_LLM_KEY 로만 넣는다 (레포에 넣지 않음)
+VOICE_LLM_MODEL = "gemini-3.1-flash-lite"   # 환경변수 LIGHTQ_LLM_MODEL 로 바꿀 수 있음
+VOICE_LLM_TIMEOUT_S = 5.0      # 이 안에 답이 없으면 포기하고 분류기 답으로 (3초일 때 15번 중 2번 시간 초과)
+VOICE_LLM_MAX_PER_MIN = 10     # 분당 최대 호출 (무료 등급 한도 보호)
