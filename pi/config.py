@@ -188,11 +188,13 @@ VOICE_STT_CHECK_S = 10.0       # 서버가 켜져 있는지 다시 확인하는 
 VOICE_STT_LANG = "ko"
 # 자주 나올 단어를 미리 알려 주면 짧은 말("눈부셔")도 비슷한 단어로 알아듣는다. 환경변수 LIGHTQ_STT_PROMPT로 바꿀 수 있음 (빈 값이면 끔)
 # 문장으로 쓰면 음악·잡음에서 그 문장을 그대로 지어내서("잘 거야.", "1단계.") 명령이 실행됐다 → 어휘만 짧게
-VOICE_STT_PROMPT = os.environ.get("LIGHTQ_STT_PROMPT", "라이트큐 창문 밝기 단계 어둡게 밝게 눈부셔 투명 자동 사생활")
+# '사생활'은 뺌: 노래만 틀었을 때 이 단어 하나를 지어내 privacy(0단계)로 실행될 뻔했다 (재측정, logprob -0.436)
+VOICE_STT_PROMPT = os.environ.get("LIGHTQ_STT_PROMPT", "라이트큐 창문 밝기 단계 어둡게 밝게 눈부셔 투명 자동")
 # 잡음 판정 (whisper verbose_json 구간별 값). 한 구간이라도 아래를 넘으면 그 구간은 말이 아닌 것으로 보고 버린다.
 # whisper 서버도 '말 없음 > 0.6 이고 logprob < -1.0'일 때 버리지만, 음악은 말 없음 확률이 낮게 나와 그냥 통과했다 → 둘 중 하나만 넘어도 버림
 VOICE_STT_MAX_NO_SPEECH = float(os.environ.get("LIGHTQ_STT_MAX_NO_SPEECH", "0.6"))   # 말이 없을 확률이 이보다 크면 버림
-VOICE_STT_MIN_LOGPROB = float(os.environ.get("LIGHTQ_STT_MIN_LOGPROB", "-1.0"))      # 평균 로그확률이 이보다 낮으면(자신 없음) 버림
+# 재측정: 실제 명령 logprob -0.05 ~ -0.27, 노래에서 지어낸 '사생활' -0.436. 말 없음 확률은 모든 녹음에서 0.0이라 logprob 기준이 실제로 거른다
+VOICE_STT_MIN_LOGPROB = float(os.environ.get("LIGHTQ_STT_MIN_LOGPROB", "-0.4"))      # 평균 로그확률이 이보다 낮으면(자신 없음) 버림
 VOICE_AUDIO_MAX_BYTES = 1_000_000    # 녹음 파일 최대 크기 (16kHz 모노 약 30초)
 VOICE_AUDIO_DIR = "pi/data/voice_audio"
 VOICE_AUDIO_KEEP = int(os.environ.get("LIGHTQ_VOICE_KEEP", "0"))   # 최근 녹음을 몇 개 남길지 (정확도 확인용, 기본 0 = 저장 안 함)

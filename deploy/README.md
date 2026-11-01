@@ -160,5 +160,5 @@ bash deploy/hotspot.sh on 비밀번호
 - 느리면 작은 모델: `bash deploy/setup_whisper.sh tiny-q8_0`, 정확도가 부족하면 큰 모델: `bash deploy/setup_whisper.sh small-q5_1` (속도 확인 필요)
 - 정확도 확인: `/etc/default/lightq`에 `LIGHTQ_VOICE_KEEP=20` 한 줄을 추가하고 재시작 → 말해 본 뒤 `.venv/bin/python -m pi.voice.stt_check pi/data/voice_audio/*.wav`. 확인 후 그 줄은 지우기 (관람객 목소리 저장 방지)
 - 상태: `systemctl status lightq-whisper`, 로그: `journalctl -u lightq-whisper -f`
-- 잡음 판정 기준 조정: `stt_check`가 파일마다 "말 없음 최대, logprob 최저"를 보여 줍니다. 노래·잡음 녹음과 실제 명령 녹음의 값을 비교해 `/etc/default/lightq`에 `LIGHTQ_STT_MAX_NO_SPEECH=0.6`, `LIGHTQ_STT_MIN_LOGPROB=-1.0`을 바꿔 넣고 `sudo systemctl restart lightq` (`install_service.sh`를 다시 돌리면 이 파일이 새로 써지니 다시 넣기)
+- 잡음 판정 기준 조정: `stt_check`가 파일마다 "말 없음 최대, logprob 최저"를 보여 줍니다. 노래·잡음 녹음과 실제 명령 녹음의 값을 비교해 `/etc/default/lightq`에 `LIGHTQ_STT_MAX_NO_SPEECH=0.6`, `LIGHTQ_STT_MIN_LOGPROB=-0.4`(기본값, 실제 명령 −0.05 ~ −0.27 / 노래에서 지어낸 말 −0.436으로 정함)를 바꿔 넣고 `sudo systemctl restart lightq` (`install_service.sh`를 다시 돌리면 이 파일이 새로 써지니 다시 넣기)
 - (선택) 음악·잡음이 계속 문장으로 나오면 VAD 켜기: `LIGHTQ_WHISPER_VAD=1 bash deploy/setup_whisper.sh` (인터넷 필요, whisper.cpp를 최신으로 받아 다시 빌드함). 끄려면 그냥 `bash deploy/setup_whisper.sh`

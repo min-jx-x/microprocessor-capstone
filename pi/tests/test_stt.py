@@ -1,6 +1,7 @@
 """음성 → 글자(whisper.cpp 서버) 연결 테스트. 실제 whisper 없이 가짜 서버로 확인한다."""
 import io
 import json
+import os
 import struct
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -126,8 +127,27 @@ def test_verbose_json_keeps_speech_drops_noise():
     text, info = speech_text(verbose(seg(" 눈부셔"), seg(" 잘 거야.", no_speech=0.9), seg(" 1단계.", logprob=-1.4)))
     assert text.strip() == "눈부셔"
     assert info == {"segments": 3, "dropped": 2, "max_no_speech": 0.9, "min_logprob": -1.4}
-    text, info = speech_text(verbose(seg(" 너무 밝아", no_speech=0.6, logprob=-1.0)))   # 기준과 같으면 통과
+    text, info = speech_text(verbose(seg(" 너무 밝아", no_speech=0.6, logprob=-0.4)))   # 기준과 같으면 통과
     assert text.strip() == "너무 밝아" and info["dropped"] == 0
+
+
+def test_default_noise_thresholds():
+    # Pi 재측정 기준. 환경변수로 바꿔 둔 경우에는 기본값을 볼 수 없으니 건너뜀
+    if "LIGHTQ_STT_MIN_LOGPROB" in os.environ or "LIGHTQ_STT_PROMPT" in os.environ:
+        pytest.skip("LIGHTQ_STT_* 환경변수가 있음")
+    assert config.VOICE_STT_MIN_LOGPROB == -0.4
+    assert "사생활" not in config.VOICE_STT_PROMPT     # 노래에서 이 단어만 지어내 0단계로 실행될 뻔함
+
+
+@pytest.mark.parametrize("text,logprob,expected", [
+    (" 사생활", -0.436, ""),               # 노래만 틀었을 때 지어냄 (privacy 0.82)
+    (" 2단계로 해 줘", -0.27, "2단계로 해 줘"),   # 실제 명령 중 가장 낮았던 값
+    (" 눈부셔", -0.05, "눈부셔"),
+])
+def test_measured_logprob_cases(monkeypatch, text, logprob, expected):
+    # 재측정 값: 말 없음 확률은 모든 녹음에서 0.0이라 logprob만으로 갈린다
+    monkeypatch.setattr(config, "VOICE_STT_MIN_LOGPROB", -0.4)
+    assert speech_text(verbose(seg(text, no_speech=0.0, logprob=logprob)))[0].strip() == expected
 
 
 @pytest.mark.parametrize("data", [
@@ -217,9 +237,14 @@ def test_audio_silence_and_errors(make_client):
     assert post_audio(client, make_wav()).status_code == 503
 
 
-def test_audio_noise_shows_not_heard(monkeypatch, tmp_path, whisper_url):
-    # 실제 WhisperSTT + 가짜 서버: 음악에서 "잘 거야."(privacy)를 지어내도 실행하지 않고 "잘 안 들렸어요"
-    monkeypatch.setattr(FakeWhisper, "reply", verbose(seg(" 잘 거야.", no_speech=0.85, logprob=-0.4)))
+@pytest.mark.parametrize("heard", [
+    seg(" 잘 거야.", no_speech=0.85, logprob=-0.3),    # 말 없음 확률로 거름
+    seg(" 사생활", no_speech=0.0, logprob=-0.436),     # 재측정: 노래에서 지어냄, logprob로 거름
+])
+def test_audio_noise_shows_not_heard(monkeypatch, tmp_path, whisper_url, heard):
+    # 실제 WhisperSTT + 가짜 서버: 음악에서 privacy 문장을 지어내도 실행하지 않고 "잘 안 들렸어요"
+    monkeypatch.setattr(config, "VOICE_STT_MIN_LOGPROB", -0.4)
+    monkeypatch.setattr(FakeWhisper, "reply", verbose(heard))
     sensor, relays, clock, outdoor = build_devices(False, 720, "12:00")
     ctrl = Controller(sensor, relays, clock, outdoor, None)
     ctrl.step()
