@@ -4,6 +4,9 @@
 #   bash deploy/setup_whisper.sh              기본 모델 base-q8_0 (한국어 정확도·속도 중간)
 #   bash deploy/setup_whisper.sh tiny-q8_0    더 빠르지만 덜 정확
 #   bash deploy/setup_whisper.sh small-q5_1   더 정확하지만 느림 (Pi에서 속도 확인 필요)
+#   LIGHTQ_WHISPER_VAD=1 bash deploy/setup_whisper.sh
+#                                             (선택, 기본 끔) Silero VAD로 말소리 구간만 인식 (음악·잡음에서 지어내기 줄이기)
+#                                             VAD 모델은 LIGHTQ_WHISPER_VAD_MODEL (기본 silero-v6.2.0)
 # 하는 일: 빌드 도구 설치 → ~/whisper.cpp 받아서 whisper-server 빌드 → 모델 받기
 #          → systemd 서비스 lightq-whisper 등록 (부팅하면 127.0.0.1:8178에서 자동 실행)
 # 확인: systemctl status lightq-whisper / 로그: journalctl -u lightq-whisper -f
@@ -11,6 +14,8 @@ set -euo pipefail
 MODEL="${1:-base-q8_0}"
 DIR="$HOME/whisper.cpp"
 PORT=8178
+VAD="${LIGHTQ_WHISPER_VAD:-0}"
+VAD_MODEL="${LIGHTQ_WHISPER_VAD_MODEL:-silero-v6.2.0}"
 
 sudo apt-get update
 sudo apt-get install -y cmake build-essential git curl
@@ -29,6 +34,17 @@ bash "$DIR/models/download-ggml-model.sh" "$MODEL" "$DIR/models"
 MODEL_PATH="$DIR/models/ggml-$MODEL.bin"
 test -f "$MODEL_PATH" || { echo "모델 파일 없음: $MODEL_PATH"; exit 1; }
 
+VAD_ARGS=""
+if [ "$VAD" = "1" ]; then
+  bash "$DIR/models/download-vad-model.sh" "$VAD_MODEL" "$DIR/models"
+  VAD_PATH="$DIR/models/ggml-$VAD_MODEL.bin"
+  test -f "$VAD_PATH" || { echo "VAD 모델 파일 없음: $VAD_PATH"; exit 1; }
+  VAD_ARGS=" --vad -vm $VAD_PATH"
+  echo "VAD 켬: $VAD_PATH"
+else
+  echo "VAD 끔 (켜려면 LIGHTQ_WHISPER_VAD=1 bash deploy/setup_whisper.sh)"
+fi
+
 sudo tee /etc/systemd/system/lightq-whisper.service >/dev/null <<UNIT
 [Unit]
 Description=LightQ offline speech recognition (whisper.cpp server)
@@ -39,7 +55,7 @@ Type=simple
 User=$USER
 WorkingDirectory=$DIR
 # 127.0.0.1에서만 받는다 (밖에서 직접 접근 불가, LightQ 웹 서버만 사용)
-ExecStart=$DIR/build/bin/whisper-server -m $MODEL_PATH --host 127.0.0.1 --port $PORT -l ko -nt -t $(nproc)
+ExecStart=$DIR/build/bin/whisper-server -m $MODEL_PATH --host 127.0.0.1 --port $PORT -l ko -nt -t $(nproc)$VAD_ARGS
 Restart=on-failure
 RestartSec=3
 
