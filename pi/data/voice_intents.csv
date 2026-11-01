@@ -258,6 +258,18 @@ train,other,고마워 라이트큐
 train,other,배고프다
 train,other,오늘 며칠이야
 train,other,재밌다
+train,privacy,다 가려 줘
+train,privacy,사생활 모두
+train,privacy,밖에서 안 보이게
+train,max_bright,투명하게 해 줘
+train,max_bright,제일 밝게 해 줘
+train,max_bright,완전 투명하게 해 줘
+train,brighter,바깥이 안 보여
+train,other,고생하셨습니다
+train,other,감사합니다
+train,other,고파
+train,other,아
+train,other,음
 test,darker,와 진짜 눈부시다
 test,darker,밝기 조금만 줄여
 test,darker,햇살이 너무 강하네
