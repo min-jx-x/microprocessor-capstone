@@ -4,9 +4,12 @@
 - 주소: 환경변수 LIGHTQ_STT_URL (기본 config.VOICE_STT_URL = http://127.0.0.1:8178/inference)
 - 서버가 없거나 응답이 없으면 last_error를 남기고 None. 화면은 그때 마이크 대신 입력칸만 쓴다.
 - 잡음만 들어와 Whisper가 프롬프트 문장을 지어내면(is_prompt_echo) 빈 글자로 돌려준다.
+- verbose_json으로 받아 구간별 no_speech_prob / avg_logprob가 기준(config.VOICE_STT_MAX_NO_SPEECH,
+  VOICE_STT_MIN_LOGPROB)을 넘는 구간은 버린다(음악·잡음에서 지어낸 "잘 거야." 같은 문장). 값이 없으면 text만 쓴다.
 - 파이썬 기본 라이브러리(urllib)만 쓴다.
 """
 import json
+import math
 import os
 import re
 import time
@@ -40,7 +43,8 @@ def _norm(s: str) -> str:
 def is_prompt_echo(text: str, prompt: Optional[str] = None) -> bool:
     """잡음만 들어왔을 때 Whisper가 프롬프트(config.VOICE_STT_PROMPT)를 그대로 읊은 결과인지.
 
-    - 프롬프트 첫 문장(제목, "라이트큐 창문 밝기 명령")이 들어 있으면: 사용자가 할 말이 아니므로 거른다
+    - 프롬프트 첫 문장이 들어 있으면: 사용자가 할 말이 아니므로 거른다
+      (지금 프롬프트는 문장 없이 어휘만 나열한 한 덩어리라, 그것을 통째로 읊은 경우)
     - 프롬프트의 연속된 문장 ECHO_RUN개 이상이 순서 그대로 들어 있으면: 거른다
     - "눈부셔 너무 밝아"처럼 두 문장만 이은 것, 짧은 명령 한 문장은 실제 말일 수 있어 통과
     공백·문장부호는 무시하고 비교한다.
@@ -55,6 +59,41 @@ def is_prompt_echo(text: str, prompt: Optional[str] = None) -> bool:
     return any("".join(sents[i:i + ECHO_RUN]) in t for i in range(len(sents) - ECHO_RUN + 1))
 
 
+def _num(v) -> Optional[float]:
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return None
+    return float(v)
+
+
+def is_noise_segment(seg: dict) -> bool:
+    """구간 하나가 말이 아닌 소리(음악·잡음)인지. 값이 없는 기준은 보지 않는다."""
+    nsp, lp = _num(seg.get("no_speech_prob")), _num(seg.get("avg_logprob"))
+    return (nsp is not None and nsp > config.VOICE_STT_MAX_NO_SPEECH) or \
+           (lp is not None and lp < config.VOICE_STT_MIN_LOGPROB)
+
+
+def speech_text(data: dict):
+    """whisper 응답 → (글자, 판정 정보).
+
+    verbose_json이면 segments의 no_speech_prob / avg_logprob로 잡음 구간을 빼고 남은 구간만 잇는다.
+    구간 값이 없는 서버(옛 버전, response_format=json)면 text를 그대로 쓰고 판정 정보는 None.
+    """
+    segs = data.get("segments")
+    segs = [s for s in segs if isinstance(s, dict)] if isinstance(segs, list) else []
+    scored = [s for s in segs if _num(s.get("no_speech_prob")) is not None or _num(s.get("avg_logprob")) is not None]
+    if not scored:
+        return str(data.get("text") or ""), None
+    kept = [s for s in segs if not is_noise_segment(s)]
+    nsps = [v for v in (_num(s.get("no_speech_prob")) for s in segs) if v is not None]
+    lps = [v for v in (_num(s.get("avg_logprob")) for s in segs) if v is not None]
+    info = {
+        "segments": len(segs), "dropped": len(segs) - len(kept),
+        "max_no_speech": round(max(nsps), 3) if nsps else None,
+        "min_logprob": round(min(lps), 3) if lps else None,
+    }
+    return " ".join(str(s.get("text") or "") for s in kept), info
+
+
 class WhisperSTT:
     def __init__(self, url: Optional[str] = None) -> None:
         self.url = url or os.environ.get("LIGHTQ_STT_URL") or config.VOICE_STT_URL
@@ -62,6 +101,7 @@ class WhisperSTT:
         self.last_error = None
         self._up = None                 # (확인 시각, 결과) 서버 살아 있는지 잠깐 기억
         self.last_ms = None
+        self.last_quality = None        # 마지막 인식의 잡음 판정 정보 (speech_text 참고, 재측정용)
 
     def available(self) -> bool:
         """서버가 켜져 있는지. 화면이 1초마다 묻기 때문에 config.VOICE_STT_CHECK_S 동안 결과를 기억한다."""
@@ -84,7 +124,8 @@ class WhisperSTT:
         boundary = uuid.uuid4().hex
         fields = {
             "language": config.VOICE_STT_LANG,
-            "response_format": "json",
+            "response_format": "verbose_json",     # 구간별 no_speech_prob / avg_logprob 를 받으려고
+            "no_language_probabilities": "true",   # verbose_json에 붙는 언어 확률 계산(추가 연산)은 끈다
             "temperature": "0.0",
             "no_timestamps": "true",
             "suppress_nst": "true",
@@ -100,7 +141,8 @@ class WhisperSTT:
         return b"".join(parts), f"multipart/form-data; boundary={boundary}"
 
     def transcribe(self, wav: bytes) -> Optional[str]:
-        """WAV(16kHz mono 권장) → 글자. 실패하면 None (last_error에 이유)."""
+        """WAV(16kHz mono 권장) → 글자. 실패하면 None (last_error에 이유), 잡음으로 판정하면 ""."""
+        self.last_quality = None
         if not is_wav(wav):
             self.last_error = "WAV 형식이 아님"
             return None
@@ -117,7 +159,15 @@ class WhisperSTT:
         self.last_ms = round((time.perf_counter() - t0) * 1000)
         self.last_error = None
         self._up = (time.monotonic(), True)
-        text = clean_text(data.get("text", ""))
+        if not isinstance(data, dict):
+            self.last_error = "whisper 응답 형식 오류"
+            return None
+        raw, self.last_quality = speech_text(data)
+        q = self.last_quality
+        if q is not None and q["dropped"]:
+            print(f"[stt] 잡음 구간 {q['dropped']}/{q['segments']}개 버림 (말 없음 최대 {q['max_no_speech']}, "
+                  f"logprob 최저 {q['min_logprob']}): '{clean_text(str(data.get('text') or ''))[:40]}'")
+        text = clean_text(raw)
         if is_prompt_echo(text):
             print(f"[stt] 프롬프트를 그대로 읊은 결과라 버림: '{text[:40]}'")
             return ""                   # 화면에는 "잘 안 들렸어요"
