@@ -27,7 +27,8 @@ except ImportError:
 
 
 class Controller:
-    def __init__(self, sensor, relays, clock, outdoor=None, store=None, pref=None) -> None:
+    def __init__(self, sensor, relays, clock, outdoor=None, store=None, pref=None,
+                 policy: Optional[str] = None) -> None:
         self.sensor = sensor
         self.clock = clock
         self.outdoor = outdoor          # 시뮬레이션일 때만 있음 (화면에 바깥 빛 표시용)
@@ -43,8 +44,13 @@ class Controller:
             ai = AIPolicy(self.lut)
             self.policies["ai"] = ai
             self.ai_meta = dict(ai.meta, stale=ai.stale)
-        # 실측 lut.json을 넣고 아직 다시 학습하지 않았으면(stale) 규칙으로 시작한다. 웹에서 AI로 바꿀 수는 있음
-        self.brain = "ai" if self.ai_meta is not None and not self.ai_meta["stale"] else "rule"
+        # 시작 판단 방식: policy 인자(app --policy) → 없으면 config.DEFAULT_POLICY(LIGHTQ_POLICY, 기본 rule).
+        # AI를 골랐어도 모델이 없거나 재학습 전(stale)이면 규칙으로 시작한다. 웹에서 AI로 바꿀 수는 있음
+        want = config.env_policy(policy) if policy else config.DEFAULT_POLICY
+        ai_ok = self.ai_meta is not None and not self.ai_meta["stale"]
+        self.brain = "ai" if want == "ai" and ai_ok else "rule"
+        if want == "ai" and not ai_ok:
+            print("[loop] AI 모델이 없거나 재학습 전이라 규칙으로 시작")
 
         self.lock = threading.Lock()    # 웹 요청 스레드와 제어 스레드가 상태를 같이 만지므로
         self.mode = "auto"              # auto: 규칙이 단계 결정 / manual: 사용자가 고른 단계 유지

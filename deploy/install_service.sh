@@ -19,10 +19,19 @@ fi
 ARGS="${1:---real}"
 sed -e "s|__USER__|$USER|g" -e "s|__REPO__|$REPO|g" deploy/lightq.service \
   | sudo tee /etc/systemd/system/lightq.service >/dev/null
-echo "LIGHTQ_ARGS=$ARGS" | sudo tee /etc/default/lightq >/dev/null
+# /etc/default/lightq는 LIGHTQ_ARGS 줄만 바꾸고 나머지 줄(LIGHTQ_POLICY, LIGHTQ_TARGET_DAY_LUX 등 현장 설정)은 남긴다
+TMP="$(mktemp)"
+if [ -f /etc/default/lightq ]; then
+  grep -v '^LIGHTQ_ARGS=' /etc/default/lightq > "$TMP" || true
+fi
+echo "LIGHTQ_ARGS=$ARGS" >> "$TMP"
+sudo install -m 644 "$TMP" /etc/default/lightq
+rm -f "$TMP"
+echo "/etc/default/lightq:"; sed 's/^/  /' /etc/default/lightq
 sudo systemctl daemon-reload
-sudo systemctl enable --now lightq
+sudo systemctl enable lightq
+sudo systemctl restart lightq   # 이미 켜져 있어도 새 설정으로 다시 시작 (enable --now는 켜진 서비스를 재시작하지 않음)
 sleep 2
 systemctl --no-pager status lightq | head -12
 echo
-echo "옵션 바꾸기: bash deploy/install_service.sh \"새 옵션\"   (다시 실행하면 덮어씀)"
+echo "옵션 바꾸기: bash deploy/install_service.sh \"새 옵션\"   (LIGHTQ_ARGS만 바뀌고 다른 줄은 유지)"
