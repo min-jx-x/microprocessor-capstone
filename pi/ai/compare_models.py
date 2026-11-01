@@ -28,7 +28,7 @@ from sklearn.preprocessing import StandardScaler
 from pi import config
 from pi.ai.evaluate import compare
 from pi.ai.features import FEATURE_LABELS, FEATURE_NAMES, HORIZON
-from pi.ai.make_dataset import label_rows, simulate_days
+from pi.ai.make_dataset import augmented, label_rows, simulate_days
 from pi.ai.offline import burst_stats
 from pi.ai.policy import AIPolicy
 from pi.ai.train import export_tree, load_dataset, make_tree, rule_predict, scores
@@ -117,7 +117,8 @@ def horizon_rows(days, lut, sim_days: int, eval_days: int, scenes: int):
     """예측 시간마다 정답을 다시 만들어 학습하고, 실제 제어(안정화 포함)에 넣어 결과를 본다."""
     out = []
     for h in HORIZONS:
-        data = np.array([r for day, rows in days for r in label_rows(rows, lut, day, horizon=h)], dtype=float)
+        data = np.array([r for day, rows in augmented(days) for r in label_rows(rows, lut, day, horizon=h)],
+                        dtype=float)   # make_dataset과 같은 잡음 증강
         day, X, y = data[:, 0].astype(int), data[:, 1:-1], data[:, -1].astype(int)
         test = day % 5 == 0
         m = make_tree(DEPTH).fit(X[~test], y[~test])

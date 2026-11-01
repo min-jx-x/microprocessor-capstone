@@ -26,6 +26,7 @@ class AIPolicy:
         self.meta = self.m.get("meta", {})
         self.hist: deque = deque(maxlen=HISTORY)
         self.last_x: Optional[List[float]] = None   # 마지막 판단의 입력 (화면 설명용, 저녁·취침이면 None)
+        self.deadband = config.AI_DEADBAND          # "brighter" | "both" | "off" (config.py 설명)
         # 모델을 학습할 때의 투과율표·단계 순서와 지금 값이 다르면 다시 학습해야 한다 (python -m pi.ai.retrain)
         trained_lut = self.meta.get("lut")
         trained_levels = self.meta.get("levels")
@@ -95,4 +96,17 @@ class AIPolicy:
         self.last_x = x
         info.update({"incident": round(inc, 1), "t_need": round(target / inc, 3),
                      "rate": round(x[1], 3)})
-        return self.predict(x), info
+        proposed = self.predict(x)
+        info["ai_raw"] = proposed                   # 데드밴드 전 트리의 답 (화면 설명용)
+        return self.hold_if_close(proposed, cur, target / inc), info
+
+    def hold_if_close(self, proposed: int, cur: int, t_need: float) -> int:
+        """AI 출력 데드밴드: 제안 단계가 현재 단계보다 (지금 필요 투과율 기준) DEADBAND_T 넘게 낫지 않으면 현재 단계 유지.
+        센서 잡음·스탠드 전환 같은 계단식 변화에 AI가 흔들려 엉뚱한 단계로 가는 것을 막는다."""
+        if self.deadband == "off" or proposed == cur or not 0 <= cur < len(self.lut):
+            return proposed
+        if self.deadband == "brighter" and proposed < cur:     # 어둡게 미리 가는 것(선제 차광)은 그대로
+            return proposed
+        if abs(self.lut[cur] - t_need) <= abs(self.lut[proposed] - t_need) + config.DEADBAND_T:
+            return cur
+        return proposed

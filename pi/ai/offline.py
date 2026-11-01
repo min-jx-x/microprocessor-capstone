@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from pi import config
 from pi.control.decide import schedule
+from pi.control.filter import LuxMedian
 from pi.control.loop import LevelDriver, Stabilizer
 from pi.devices.sim import SimRelays, SimSensor, default_ambient, level_transmittance
 from pi.sim.outdoor import OutdoorLight
@@ -42,6 +43,7 @@ def run_day(policy, profile: Optional[Sequence[float]] = None, dt_s: float = 720
     sensor = SimSensor(relays, outdoor, ambient_lux=AMBIENT_LUX, seed=seed + 1)
     driver = LevelDriver(relays, settle_s=0)
     stab = Stabilizer()
+    filt = LuxMedian()             # 제어 루프와 같은 중앙값 평활
     policy.reset()
     driver.apply(0)
 
@@ -58,8 +60,9 @@ def run_day(policy, profile: Optional[Sequence[float]] = None, dt_s: float = 720
                                   hold_steps=rng.randint(5, 20))
             burst_starts.append(i)
         lux = sensor.read_lux()
-        cand, _ = policy.decide(lux, h, level, wake_hour)
-        rows.append({"i": i, "hour": h, "lux": lux, "target": target, "level": level,
+        lux_in = filt.add(level, lux)                    # 판단에 쓰는 값 (lux는 실제 실내 조도로 기록)
+        cand, _ = policy.decide(lux_in, h, level, wake_hour)
+        rows.append({"i": i, "hour": h, "lux": lux, "lux_in": lux_in, "target": target, "level": level,
                      "outdoor": outdoor.last, "cand": cand})
         now = i * config.SAMPLE_PERIOD_S
         if explore and target is not None and r_explore < explore:
@@ -85,6 +88,7 @@ def run_scene(policy, seed: int = 0, hour: float = 12.0, steps: int = 70,
     sensor = SimSensor(relays, outdoor, ambient_lux=AMBIENT_LUX, seed=seed + 1)
     driver = LevelDriver(relays, settle_s=0)
     stab = Stabilizer()
+    filt = LuxMedian()
     policy.reset()
     driver.apply(0)
     level, rows = 0, []
@@ -94,7 +98,7 @@ def run_scene(policy, seed: int = 0, hour: float = 12.0, steps: int = 70,
             outdoor.trigger_burst(extra_lux, rise_steps=rise_steps, hold_steps=hold_steps)
         _, target = schedule(clock["h"], wake_hour)
         lux = sensor.read_lux()
-        cand, _ = policy.decide(lux, clock["h"], level, wake_hour)
+        cand, _ = policy.decide(filt.add(level, lux), clock["h"], level, wake_hour)
         rows.append({"i": i, "lux": lux, "target": target, "level": level,
                      "outdoor": outdoor.last, "cand": cand})
         nxt = stab.propose(cand, level, float(i))
