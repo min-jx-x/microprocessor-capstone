@@ -106,6 +106,8 @@ bash deploy/install_service.sh "--real --start 11:00 --speed 0"   # 부팅하면
 - 휴대폰: Wi-Fi `LightQ` 접속 → `http://10.42.0.1:5000` (주소는 `hotspot.sh`가 출력, 확인 필요)
 - 핫스팟을 켜면 Pi의 인터넷이 끊깁니다. 코드 업데이트는 `bash deploy/hotspot.sh off` → `git pull` → `bash deploy/hotspot.sh on 비밀번호`
 - 상태: `systemctl status lightq`, 로그: `journalctl -u lightq -f`, 해제: `bash deploy/install_service.sh remove`
+- 판단 방식은 기본 **규칙**입니다 (AI는 센서 잡음에 약해 시연 순서를 틀릴 때가 있음). 웹에서 AI로 바꿔도 재시작하면 규칙으로 돌아옵니다. AI로 시작하려면 `/etc/default/lightq`에 `LIGHTQ_POLICY=ai`
+- 현장 조정 (주간 목표, 기본 330 lux): `echo LIGHTQ_TARGET_DAY_LUX=320 | sudo tee -a /etc/default/lightq && sudo systemctl restart lightq` → `journalctl -u lightq | grep 판단` 에 `판단 방식 rule, 주간 목표 320 lux`가 나오면 적용됨. `install_service.sh`를 다시 돌려도 `LIGHTQ_ARGS` 줄만 바뀌고 이 줄은 남습니다
 
 ## 문제 해결
 
@@ -137,7 +139,7 @@ sudo chmod 600 /etc/default/lightq-secrets
 bash deploy/install_service.sh "--real --start 11:00 --speed 0"   # 서비스 파일을 새로 써서 이 파일을 읽게 함
 ```
 
-- 키는 레포·카톡·채팅에 올리지 않습니다. `install_service.sh`는 `/etc/default/lightq`만 덮어쓰고 이 파일은 건드리지 않습니다.
+- 키는 레포·카톡·채팅에 올리지 않습니다. `install_service.sh`는 `/etc/default/lightq`의 `LIGHTQ_ARGS` 줄만 바꾸고 이 파일은 건드리지 않습니다.
 - 모델 바꾸기: 같은 파일에 `LIGHTQ_LLM_MODEL=모델이름` (기본 `gemini-3.1-flash-lite`)
 - 키 확인(노트북 cmd): `set LIGHTQ_LLM_KEY=키` → `python -m pi.voice.evaluate --llm --extra "영화 볼 거야"`
 - 웹 음성 카드 오른쪽 위가 "분류기 + Gemini"면 키가 적용된 것. 괄호 안에 LLM 오류가 보이면 인터넷이나 키 확인
@@ -160,5 +162,5 @@ bash deploy/hotspot.sh on 비밀번호
 - 느리면 작은 모델: `bash deploy/setup_whisper.sh tiny-q8_0`, 정확도가 부족하면 큰 모델: `bash deploy/setup_whisper.sh small-q5_1` (속도 확인 필요)
 - 정확도 확인: `/etc/default/lightq`에 `LIGHTQ_VOICE_KEEP=20` 한 줄을 추가하고 재시작 → 말해 본 뒤 `.venv/bin/python -m pi.voice.stt_check pi/data/voice_audio/*.wav`. 확인 후 그 줄은 지우기 (관람객 목소리 저장 방지)
 - 상태: `systemctl status lightq-whisper`, 로그: `journalctl -u lightq-whisper -f`
-- 잡음 판정 기준 조정: `stt_check`가 파일마다 "말 없음 최대, logprob 최저"를 보여 줍니다. 노래·잡음 녹음과 실제 명령 녹음의 값을 비교해 `/etc/default/lightq`에 `LIGHTQ_STT_MAX_NO_SPEECH=0.6`, `LIGHTQ_STT_MIN_LOGPROB=-0.4`(기본값, 실제 명령 −0.05 ~ −0.27 / 노래에서 지어낸 말 −0.436으로 정함)를 바꿔 넣고 `sudo systemctl restart lightq` (`install_service.sh`를 다시 돌리면 이 파일이 새로 써지니 다시 넣기)
+- 잡음 판정 기준 조정: `stt_check`가 파일마다 "말 없음 최대, logprob 최저"를 보여 줍니다. 노래·잡음 녹음과 실제 명령 녹음의 값을 비교해 `/etc/default/lightq`에 `LIGHTQ_STT_MAX_NO_SPEECH=0.6`, `LIGHTQ_STT_MIN_LOGPROB=-0.4`(기본값, 실제 명령 −0.05 ~ −0.27 / 노래에서 지어낸 말 −0.436으로 정함)를 바꿔 넣고 `sudo systemctl restart lightq` (`install_service.sh`를 다시 돌려도 `LIGHTQ_ARGS` 외의 줄은 남음)
 - (선택) 음악·잡음이 계속 문장으로 나오면 VAD 켜기: `LIGHTQ_WHISPER_VAD=1 bash deploy/setup_whisper.sh` (인터넷 필요, whisper.cpp를 최신으로 받아 다시 빌드함). 끄려면 그냥 `bash deploy/setup_whisper.sh`
