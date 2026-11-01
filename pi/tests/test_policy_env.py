@@ -30,10 +30,10 @@ def _config_in_new_process(env_extra):
 
 
 def test_env_policy_values():
-    assert config.env_policy(None) == "rule"
-    assert config.env_policy("") == "rule"
-    assert config.env_policy(" AI ") == "ai"
-    assert config.env_policy("tree") == "rule"        # 모르는 값은 안전한 규칙
+    assert config.env_policy(None) == "ai"            # 기본은 AI
+    assert config.env_policy("") == "ai"
+    assert config.env_policy(" RULE ") == "rule"      # 시연 중 문제가 생기면 규칙으로
+    assert config.env_policy("tree") == "ai"          # 모르는 값은 경고 후 기본
 
 
 def test_env_float(monkeypatch):
@@ -47,13 +47,13 @@ def test_env_float(monkeypatch):
 
 
 def test_new_process_defaults_and_overrides():
-    assert _config_in_new_process({}) == ("rule", 330.0)
-    assert _config_in_new_process({"LIGHTQ_POLICY": "ai", "LIGHTQ_TARGET_DAY_LUX": "320"}) == ("ai", 320.0)
-    assert _config_in_new_process({"LIGHTQ_TARGET_DAY_LUX": "abc"}) == ("rule", 330.0)
+    assert _config_in_new_process({}) == ("ai", 320.0)
+    assert _config_in_new_process({"LIGHTQ_POLICY": "rule", "LIGHTQ_TARGET_DAY_LUX": "310"}) == ("rule", 310.0)
+    assert _config_in_new_process({"LIGHTQ_TARGET_DAY_LUX": "abc"}) == ("ai", 320.0)
 
 
-def test_default_start_is_rule(monkeypatch):
-    monkeypatch.setattr(config, "DEFAULT_POLICY", "rule")
+def test_policy_rule_from_env(monkeypatch):
+    monkeypatch.setattr(config, "DEFAULT_POLICY", "rule")   # LIGHTQ_POLICY=rule 과 같음
     assert _ctrl().brain == "rule"
 
 
@@ -63,16 +63,19 @@ def test_policy_ai_when_model_fresh(monkeypatch):
     if ctrl.ai_meta["stale"]:
         pytest.skip("모델이 지금 투과율표로 학습되지 않음 (python -m pi.ai.retrain)")
     assert ctrl.brain == "ai"
-    monkeypatch.setattr(config, "DEFAULT_POLICY", "ai")   # 환경변수 LIGHTQ_POLICY=ai 와 같음
+    monkeypatch.setattr(config, "DEFAULT_POLICY", "ai")   # 기본값
     assert _ctrl().brain == "ai"
     assert _ctrl(policy="rule").brain == "rule"           # 실행 옵션이 환경변수보다 우선
 
 
 @needs_fresh_model
-def test_web_can_still_switch_to_ai(monkeypatch):
-    monkeypatch.setattr(config, "DEFAULT_POLICY", "rule")
+def test_web_switch_both_ways(monkeypatch):
+    monkeypatch.setattr(config, "DEFAULT_POLICY", "ai")
     ctrl = _ctrl()
     client = create_app(ctrl, None).test_client()
+    assert client.post("/api/brain", json={"brain": "rule"}).status_code == 200   # 시연 중 문제 → 바로 규칙
+    assert ctrl.brain == "rule"
     assert client.post("/api/brain", json={"brain": "ai"}).status_code == 200
     assert ctrl.brain == "ai"
-    assert _ctrl().brain == "rule"                        # 다시 시작하면(재부팅) 규칙으로
+    monkeypatch.setattr(config, "DEFAULT_POLICY", "rule")
+    assert _ctrl().brain == "rule"                        # 다시 시작하면(재부팅) 설정값으로

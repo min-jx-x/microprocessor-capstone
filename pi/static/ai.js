@@ -159,7 +159,9 @@ function renderLive(e) {
   $("ans-rule").textContent = lv(ans.rule);
   if (e.rule) $("rule-why").textContent = `필요 투과율 ${e.rule.t_need.toFixed(2)}에 가까운 단계`;
   $("ans-ai").textContent = lv(ans.ai);
-  $("ai-why").textContent = ai ? `빛 변화 ${val("rate1")} · 질문 ${ai.path.length}개` : "";
+  // 트리 답과 실제 AI 답이 다르면 데드밴드가 현재 단계를 유지한 것 (config.AI_DEADBAND)
+  const held = ai && ans.ai != null && ai.level !== ans.ai ? ` · 트리 ${ai.level}단계 → 차이가 작아 유지` : "";
+  $("ai-why").textContent = ai ? `빛 변화 ${val("rate1")} · 질문 ${ai.path.length}개${held}` : "";
   $("applied").textContent = lv(e.level);
   const st = e.stab;
   let why = "직접 고름";
