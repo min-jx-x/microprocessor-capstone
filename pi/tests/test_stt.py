@@ -13,7 +13,7 @@ from pi.control.loop import Controller
 from pi.storage import LogStore
 from pi.voice.handler import VoiceHandler
 from pi.voice.intent import IntentModel
-from pi.voice.stt import WhisperSTT, clean_text, is_wav
+from pi.voice.stt import WhisperSTT, clean_text, is_prompt_echo, is_wav
 
 
 def make_wav(seconds=1.0, rate=16000) -> bytes:
@@ -64,6 +64,40 @@ def test_transcribe_sends_korean_request(whisper_url):
     body = FakeWhisper.seen["body"]
     assert b'name="language"\r\n\r\nko' in body and b'name="file"; filename="voice.wav"' in body
     assert FakeWhisper.seen["ctype"].startswith("multipart/form-data; boundary=")
+
+
+PROMPT = ("라이트큐 창문 밝기 명령. 눈부셔. 너무 밝아. 좀 어둡게 해 줘. 좀 밝게 해 줘. 너무 어두워. "
+          "0단계로 바꿔 줘. 자동으로 해 줘. 지금 몇 단계야.")
+
+
+@pytest.mark.parametrize("text,echo", [
+    ("라이트큐 창문 밝기 명령.", True),                       # 제목 문장: 사용자가 할 말이 아님
+    ("라이트큐 창문 밝기 명령 눈부셔", True),
+    ("눈부셔. 너무 밝아. 좀 어둡게 해 줘.", True),            # 연속 3문장 순서 그대로
+    ("너무밝아 좀어둡게해줘 좀 밝게 해 줘 너무 어두워", True),  # 띄어쓰기·문장부호가 달라도
+    (PROMPT, True),
+    ("눈부셔 너무 밝아", False),                              # 두 문장만 이은 건 실제 말일 수 있음
+    ("눈부셔", False),
+    ("2단계로 바꿔 줘", False),
+    ("너무 밝아. 눈부셔. 좀 어둡게 해 줘.", False),           # 순서가 다르면 지어낸 것으로 보지 않음
+    ("", False),
+])
+def test_prompt_echo_rule(monkeypatch, text, echo):
+    monkeypatch.setattr(config, "VOICE_STT_PROMPT", PROMPT)
+    assert is_prompt_echo(text) is echo
+
+
+@pytest.mark.parametrize("heard,expected", [
+    (" 라이트큐 창문 밝기 명령. 눈부셔. 너무 밝아.", ""),        # 잡음 → 프롬프트를 읊음 → 버림
+    (" 눈부셔. 너무 밝아. 좀 어둡게 해 줘. 좀 밝게 해 줘.", ""),
+    (" 눈부셔 너무 밝아", "눈부셔 너무 밝아"),
+    (" 눈부셔", "눈부셔"),
+])
+def test_transcribe_drops_prompt_echo(monkeypatch, whisper_url, heard, expected):
+    monkeypatch.setattr(config, "VOICE_STT_PROMPT", PROMPT)
+    monkeypatch.setattr(FakeWhisper, "reply", {"text": heard})
+    stt = WhisperSTT(whisper_url)
+    assert stt.transcribe(make_wav()) == expected and stt.last_error is None
 
 
 def test_transcribe_server_down():
