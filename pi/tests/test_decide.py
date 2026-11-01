@@ -24,8 +24,9 @@ def test_night_forces_level_0():
 
 
 def test_picks_nearest_level():
-    # 입사광 1250, 목표 500 → 필요 투과율 0.40 → 3단계(0.38)
-    level, info = decide_rule(1250 * LUT[5], 12.0, 5, LUT, 7.5)
+    # 입사광 = 주간 목표 / 0.40 → 필요 투과율 0.40 → 3단계(0.38) (목표 320이면 입사광 800)
+    incident = config.TARGET_DAY_LUX / 0.40
+    level, info = decide_rule(incident * LUT[5], 12.0, 5, LUT, 7.5)
     assert level == 3
     assert info["t_need"] == pytest.approx(0.4, abs=0.01)
 
@@ -71,3 +72,26 @@ def test_stabilizer_resets_on_direction_change():
     st.propose(1, 3, now=11)
     assert st.propose(4, 3, now=12) is None     # 방향이 바뀌면 처음부터
     assert st.propose(3, 3, now=13) is None     # 현재와 같으면(유지) 초기화
+
+
+# 11/1 실측 (잡광 140 lux, lut.json). 단계별 센서 조도 [0단계, 1단계, 2단계]
+MEASURED_LUT = [0.6473, 0.7563, 1.0]
+MEASURED_LUX = {2: [171, 188, 223], 5: [226, 241, 280], 10: [352.5, 388.3, 468.3]}
+
+
+def _settle(lux_by_level, start, max_steps=10):
+    """decide_rule을 반복 적용해 더 이상 안 바뀌는 단계. 단계를 바꾸면 센서 값은 그 단계의 실측값이 된다."""
+    cur = start
+    for _ in range(max_steps):
+        nxt, _ = decide_rule(lux_by_level[cur], 12.0, cur, MEASURED_LUT, 7.5)
+        if nxt == cur:
+            return cur
+        cur = nxt
+    raise AssertionError(f"{max_steps}번 안에 수렴하지 않음 (시작 {start}단계)")
+
+
+@pytest.mark.parametrize("stand, expected", [(2, 2), (5, 2), (10, 0)])
+@pytest.mark.parametrize("start", [0, 1, 2])
+def test_measured_lux_converges(stand, expected, start):
+    # 주간 목표(TARGET_DAY_LUX)로 스탠드 2·5는 2단계(투명), 10은 0단계(뿌옇게)에 시작 단계와 무관하게 멈춰야 한다
+    assert _settle(MEASURED_LUX[stand], start) == expected
