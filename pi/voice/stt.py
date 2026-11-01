@@ -3,6 +3,7 @@
 - whisper-server 설치·실행: bash deploy/setup_whisper.sh (Pi, 인터넷 필요한 건 설치 때 한 번뿐)
 - 주소: 환경변수 LIGHTQ_STT_URL (기본 config.VOICE_STT_URL = http://127.0.0.1:8178/inference)
 - 서버가 없거나 응답이 없으면 last_error를 남기고 None. 화면은 그때 마이크 대신 입력칸만 쓴다.
+- 잡음만 들어와 Whisper가 프롬프트 문장을 지어내면(is_prompt_echo) 빈 글자로 돌려준다.
 - 파이썬 기본 라이브러리(urllib)만 쓴다.
 """
 import json
@@ -26,6 +27,32 @@ def is_wav(data: bytes) -> bool:
 
 def clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", _BRACKETS.sub(" ", text or "")).strip()
+
+
+_NOT_WORD = re.compile(r"[^0-9A-Za-z가-힣]")
+ECHO_RUN = 3        # 프롬프트의 연속된 문장이 이만큼 그대로 나오면 지어낸 것으로 본다
+
+
+def _norm(s: str) -> str:
+    return _NOT_WORD.sub("", s or "")
+
+
+def is_prompt_echo(text: str, prompt: Optional[str] = None) -> bool:
+    """잡음만 들어왔을 때 Whisper가 프롬프트(config.VOICE_STT_PROMPT)를 그대로 읊은 결과인지.
+
+    - 프롬프트 첫 문장(제목, "라이트큐 창문 밝기 명령")이 들어 있으면: 사용자가 할 말이 아니므로 거른다
+    - 프롬프트의 연속된 문장 ECHO_RUN개 이상이 순서 그대로 들어 있으면: 거른다
+    - "눈부셔 너무 밝아"처럼 두 문장만 이은 것, 짧은 명령 한 문장은 실제 말일 수 있어 통과
+    공백·문장부호는 무시하고 비교한다.
+    """
+    prompt = config.VOICE_STT_PROMPT if prompt is None else prompt
+    sents = [n for n in (_norm(s) for s in re.split(r"[.!?。]", prompt or "")) if n]
+    t = _norm(text)
+    if not sents or not t:
+        return False
+    if sents[0] in t:
+        return True
+    return any("".join(sents[i:i + ECHO_RUN]) in t for i in range(len(sents) - ECHO_RUN + 1))
 
 
 class WhisperSTT:
@@ -90,4 +117,8 @@ class WhisperSTT:
         self.last_ms = round((time.perf_counter() - t0) * 1000)
         self.last_error = None
         self._up = (time.monotonic(), True)
-        return clean_text(data.get("text", ""))
+        text = clean_text(data.get("text", ""))
+        if is_prompt_echo(text):
+            print(f"[stt] 프롬프트를 그대로 읊은 결과라 버림: '{text[:40]}'")
+            return ""                   # 화면에는 "잘 안 들렸어요"
+        return text

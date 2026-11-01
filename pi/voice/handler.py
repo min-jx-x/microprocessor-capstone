@@ -6,7 +6,9 @@
   3) LLM을 못 쓰면 낮은 기준(config.VOICE_MIN_CONF_OFFLINE) 이상인 분류기 답을 쓴다.
   4) 그것도 아니면 바꾸지 않고 "다시 말해 주세요".
 동작은 웹 단계 버튼과 같은 Controller.set_manual / set_mode 를 쓴다.
-여러 기기가 동시에 보내도 하나씩 처리하고, 단계를 바꾸는 명령 사이에는 config.VOICE_COOLDOWN_S 간격을 둔다.
+여러 기기가 동시에 보내도 하나씩 처리하고(_lock), 단계를 바꾸는 명령 사이에는 config.VOICE_COOLDOWN_S 간격을 둔다.
+기록(_log, _seq)은 _log_lock으로 따로 지킨다. LLM이 최대 5초 걸리는 동안에도
+화면이 1초마다 부르는 recent()가 기다리지 않게 하기 위해서다.
 """
 import re
 import threading
@@ -37,7 +39,8 @@ class VoiceHandler:
         self._last_change = None
         self._seq = 0                   # 화면이 새 기록을 알아보는 번호
         self._log = deque(maxlen=config.VOICE_LOG_SIZE)
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()       # 명령을 하나씩 처리 (LLM 대기 포함, 길게 잡힘)
+        self._log_lock = threading.Lock()   # 기록 읽기·쓰기만 (짧게 잡힘)
 
     # ------------------------------------------------------------ 판단
     def _decide(self, text: str, state: dict) -> dict:
@@ -117,22 +120,24 @@ class VoiceHandler:
                     reply = d["llm_reply"]
 
             after = self.ctrl.snapshot()
-            self._seq += 1
             result = {
-                "id": self._seq, "time": datetime.now().strftime("%H:%M:%S"),
+                "time": datetime.now().strftime("%H:%M:%S"),
                 "text": text, "device": device, "intent": d["intent"], "confidence": d["confidence"],
                 "source": d["source"], "action": action, "applied": applied,
                 "level_before": cur, "level_after": after["level"], "mode": after["mode"],
                 "reply": reply, "ms": round((time.perf_counter() - t0) * 1000),
                 "vtime": after["vtime"],
             }
-            self._log.appendleft(result)
+            with self._log_lock:
+                self._seq += 1
+                result["id"] = self._seq
+                self._log.appendleft(result)
         print(f"[voice] {device}: '{text}' → {d['source']}:{action} ({cur}→{result['level_after']}) {result['ms']}ms")
         return result
 
     # ------------------------------------------------------------ 화면용
     def recent(self) -> list:
-        with self._lock:
+        with self._log_lock:
             return list(self._log)
 
     def status(self) -> dict:
