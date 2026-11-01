@@ -1,9 +1,9 @@
 {
- "generated": "2026-11-01 19:32",
+ "generated": "2026-11-01 19:48",
  "levels": 3,
  "lut": [
-  0.6473,
-  0.7563,
+  0.6796,
+  0.7797,
   1.0
  ],
  "lut_source": "measured",
@@ -12,9 +12,9 @@
   "train_rows": 88166,
   "test_rows": 11425,
   "label_share": [
-   0.5009,
-   0.1487,
-   0.3504
+   0.6506,
+   0.1231,
+   0.2264
   ]
  },
  "current": {
@@ -30,41 +30,41 @@
    "key": "always_top",
    "name": "항상 가장 밝게",
    "baseline": true,
-   "acc": 0.3354,
+   "acc": 0.21724,
    "balanced": 0.33333,
-   "change": 0.31096,
-   "rising": 0.08889
+   "change": 0.26724,
+   "rising": 0.03913
   },
   {
    "key": "keep",
    "name": "지금 단계 유지",
    "baseline": true,
-   "acc": 0.77567,
-   "balanced": 0.71964,
+   "acc": 0.81724,
+   "balanced": 0.70749,
    "change": 0.0,
-   "rising": 0.48254
+   "rising": 0.62946
   },
   {
    "key": "rule",
    "name": "규칙 (지금 빛만 봄)",
    "baseline": true,
-   "acc": 0.85961,
-   "balanced": 0.80923,
-   "change": 0.45533,
-   "rising": 0.70794
+   "acc": 0.89287,
+   "balanced": 0.80627,
+   "change": 0.48324,
+   "rising": 0.81588
   },
   {
    "key": "tree",
    "name": "결정트리 (깊이 8, 현재)",
    "baseline": false,
-   "size_kb": 10.4,
+   "size_kb": 10.1,
    "deploy": "JSON 파일 하나, if문 몇 번",
    "explain": "지나온 질문 경로가 곧 판단 근거",
    "current": true,
-   "acc": 0.90066,
-   "balanced": 0.85861,
-   "change": 0.71674,
-   "rising": 0.84339
+   "acc": 0.92385,
+   "balanced": 0.86964,
+   "change": 0.74856,
+   "rising": 0.93441
   },
   {
    "key": "logistic",
@@ -74,10 +74,10 @@
    "deploy": "가중치 몇 개",
    "explain": "가중치는 보이지만 경계가 직선뿐이라 부족",
    "current": false,
-   "acc": 0.86976,
-   "balanced": 0.78346,
-   "change": 0.6625,
-   "rising": 0.83069
+   "acc": 0.91799,
+   "balanced": 0.81396,
+   "change": 0.7069,
+   "rising": 0.9229
   },
   {
    "key": "knn",
@@ -87,23 +87,23 @@
    "deploy": "학습 데이터 전체를 들고 다녀야 함",
    "explain": "비슷한 과거 사례를 보여 줄 수는 있음",
    "current": false,
-   "acc": 0.90495,
-   "balanced": 0.86746,
-   "change": 0.70386,
-   "rising": 0.85608
+   "acc": 0.92972,
+   "balanced": 0.88084,
+   "change": 0.7409,
+   "rising": 0.93326
   },
   {
    "key": "forest",
    "name": "랜덤포레스트 (100그루)",
    "baseline": false,
-   "size_kb": 18716.4,
+   "size_kb": 16672.6,
    "deploy": "트리 100개, scikit-learn 필요",
    "explain": "트리 100개의 투표라 경로 하나로 설명 불가",
    "current": false,
-   "acc": 0.90792,
-   "balanced": 0.8694,
-   "change": 0.71869,
-   "rising": 0.86455
+   "acc": 0.93453,
+   "balanced": 0.89392,
+   "change": 0.76724,
+   "rising": 0.94131
   },
   {
    "key": "boost",
@@ -113,116 +113,116 @@
    "deploy": "트리 수백 개, scikit-learn 필요",
    "explain": "트리 수백 개의 합이라 설명 어려움",
    "current": false,
-   "acc": 0.90468,
-   "balanced": 0.86357,
-   "change": 0.72259,
-   "rising": 0.85397
+   "acc": 0.9326,
+   "balanced": 0.88748,
+   "change": 0.76341,
+   "rising": 0.93786
   },
   {
    "key": "mlp",
    "name": "신경망 (MLP 32×32)",
    "baseline": false,
-   "size_kb": 53.5,
+   "size_kb": 53.1,
    "deploy": "가중치 행렬, 행렬 곱 구현 필요",
    "explain": "판단 근거를 사람이 읽기 어려움",
    "current": false,
-   "acc": 0.91081,
-   "balanced": 0.88092,
-   "change": 0.73195,
-   "rising": 0.87407
+   "acc": 0.93479,
+   "balanced": 0.89418,
+   "change": 0.76293,
+   "rising": 0.94707
   }
  ],
  "depth": [
   {
    "depth": 2,
    "leaves": 4,
-   "train_change": 0.50537,
-   "acc": 0.85488,
-   "balanced": 0.78919,
-   "change": 0.51541,
-   "rising": 0.72381
+   "train_change": 0.53913,
+   "acc": 0.8912,
+   "balanced": 0.81351,
+   "change": 0.54502,
+   "rising": 0.82509
   },
   {
    "depth": 3,
    "leaves": 8,
-   "train_change": 0.61869,
-   "acc": 0.86792,
-   "balanced": 0.81743,
-   "change": 0.61568,
-   "rising": 0.78519
+   "train_change": 0.65306,
+   "acc": 0.89199,
+   "balanced": 0.85644,
+   "change": 0.65852,
+   "rising": 0.90679
   },
   {
    "depth": 4,
    "leaves": 16,
-   "train_change": 0.66649,
-   "acc": 0.87562,
-   "balanced": 0.81469,
-   "change": 0.66446,
-   "rising": 0.8254
+   "train_change": 0.62809,
+   "acc": 0.90389,
+   "balanced": 0.83561,
+   "change": 0.62835,
+   "rising": 0.91484
   },
   {
    "depth": 5,
    "leaves": 32,
-   "train_change": 0.67309,
-   "acc": 0.88516,
-   "balanced": 0.83217,
-   "change": 0.66836,
-   "rising": 0.83069
+   "train_change": 0.67606,
+   "acc": 0.91326,
+   "balanced": 0.86101,
+   "change": 0.67433,
+   "rising": 0.916
   },
   {
    "depth": 6,
    "leaves": 64,
-   "train_change": 0.70818,
-   "acc": 0.89383,
-   "balanced": 0.84612,
-   "change": 0.70933,
-   "rising": 0.83915
+   "train_change": 0.72601,
+   "acc": 0.91991,
+   "balanced": 0.87651,
+   "change": 0.74042,
+   "rising": 0.93441
   },
   {
    "depth": 8,
-   "leaves": 227,
-   "train_change": 0.72735,
-   "acc": 0.90066,
-   "balanced": 0.85861,
-   "change": 0.71674,
-   "rising": 0.84339
+   "leaves": 221,
+   "train_change": 0.75386,
+   "acc": 0.92385,
+   "balanced": 0.86964,
+   "change": 0.74856,
+   "rising": 0.93441
   },
   {
    "depth": 10,
-   "leaves": 567,
-   "train_change": 0.74218,
-   "acc": 0.90398,
-   "balanced": 0.86645,
-   "change": 0.71791,
-   "rising": 0.84974
+   "leaves": 494,
+   "train_change": 0.7617,
+   "acc": 0.92761,
+   "balanced": 0.87496,
+   "change": 0.74761,
+   "rising": 0.93211
   },
   {
    "depth": 12,
-   "leaves": 915,
-   "train_change": 0.74651,
-   "acc": 0.90267,
-   "balanced": 0.86424,
-   "change": 0.71479,
-   "rising": 0.85079
+   "leaves": 764,
+   "train_change": 0.767,
+   "acc": 0.9298,
+   "balanced": 0.88132,
+   "change": 0.74377,
+   "rising": 0.93211
   },
   {
    "depth": 16,
-   "leaves": 1422,
-   "train_change": 0.74769,
-   "acc": 0.90144,
-   "balanced": 0.86266,
-   "change": 0.7105,
-   "rising": 0.85079
+   "leaves": 1131,
+   "train_change": 0.77664,
+   "acc": 0.92849,
+   "balanced": 0.8776,
+   "change": 0.75048,
+   "rising": 0.93211
   }
  ],
  "ablation": [
   {
    "drop": [],
    "name": "없음 (전체 사용)",
-   "acc": 0.90066,
-   "balanced": 0.85861,
-   "change": 0.71674,
-   "rising": 0.84339
+   "acc": 0.92385,
+   "balanced": 0.86964,
+   "change": 0.74856,
+   "rising": 0.93441
   },
   {
    "drop": [
@@ -231,137 +231,137 @@
     "rate3"
    ],
    "name": "빛 변화율 3개",
-   "acc": 0.8695,
-   "balanced": 0.813,
-   "change": 0.57979,
-   "rising": 0.75979
+   "acc": 0.90302,
+   "balanced": 0.83001,
+   "change": 0.64033,
+   "rising": 0.87572
   },
   {
    "drop": [
     "log_tneed"
    ],
    "name": "필요 투과율",
-   "acc": 0.82521,
-   "balanced": 0.73638,
-   "change": 0.36091,
-   "rising": 0.80106
+   "acc": 0.86731,
+   "balanced": 0.73341,
+   "change": 0.3841,
+   "rising": 0.916
   },
   {
    "drop": [
     "target"
    ],
    "name": "목표 조도",
-   "acc": 0.89847,
-   "balanced": 0.85692,
-   "change": 0.71362,
-   "rising": 0.84233
+   "acc": 0.92516,
+   "balanced": 0.8716,
+   "change": 0.71983,
+   "rising": 0.93556
   },
   {
    "drop": [
     "cur"
    ],
    "name": "현재 단계",
-   "acc": 0.89488,
-   "balanced": 0.85313,
-   "change": 0.72493,
-   "rising": 0.82751
+   "acc": 0.92228,
+   "balanced": 0.86458,
+   "change": 0.7567,
+   "rising": 0.92635
   }
  ],
  "importance": [
   {
    "feature": "log_tneed",
    "label": "필요 투과율",
-   "value": 0.8495
+   "value": 0.8566
   },
   {
    "feature": "rate1",
    "label": "직전 1회 빛 변화",
-   "value": 0.0921
+   "value": 0.0727
   },
   {
    "feature": "rate2",
    "label": "1~2회 전 빛 변화",
-   "value": 0.0291
+   "value": 0.0246
   },
   {
    "feature": "rate3",
    "label": "2~3회 전 빛 변화",
-   "value": 0.0142
+   "value": 0.017
   },
   {
    "feature": "cur",
    "label": "현재 단계",
-   "value": 0.0096
+   "value": 0.0145
   },
   {
    "feature": "target",
    "label": "목표 조도",
-   "value": 0.0054
+   "value": 0.0145
   }
  ],
  "horizon": [
   {
    "horizon": 1,
    "current": false,
-   "change": 0.83947,
+   "change": 0.84285,
    "burst_delay": 50,
-   "burst_glare": 33.15,
-   "day_glare": 22.3,
-   "day_switches": 3.425,
-   "day_delay": 5.21429,
-   "day_acc": 0.28808
+   "burst_glare": 49.125,
+   "day_glare": 29.375,
+   "day_switches": 2.325,
+   "day_delay": 4.66667,
+   "day_acc": 0.2748
   },
   {
    "horizon": 2,
    "current": false,
-   "change": 0.79119,
+   "change": 0.80098,
    "burst_delay": 50,
-   "burst_glare": 33.15,
-   "day_glare": 22.2,
-   "day_switches": 3.225,
-   "day_delay": 4.76923,
-   "day_acc": 0.28857
+   "burst_glare": 49.125,
+   "day_glare": 29.35,
+   "day_switches": 2.025,
+   "day_delay": 4.6,
+   "day_acc": 0.27985
   },
   {
    "horizon": 4,
    "current": true,
-   "change": 0.71674,
+   "change": 0.74856,
    "burst_delay": 50,
-   "burst_glare": 33.15,
-   "day_glare": 21.95,
-   "day_switches": 2.875,
-   "day_delay": 4.58333,
-   "day_acc": 0.29145
+   "burst_glare": 49.125,
+   "day_glare": 29.175,
+   "day_switches": 1.6,
+   "day_delay": 4,
+   "day_acc": 0.28089
   },
   {
    "horizon": 6,
    "current": false,
-   "change": 0.63352,
+   "change": 0.70271,
    "burst_delay": 50,
-   "burst_glare": 33.15,
-   "day_glare": 21.8,
-   "day_switches": 2.475,
-   "day_delay": 4.33333,
-   "day_acc": 0.28997
+   "burst_glare": 49.125,
+   "day_glare": 29.075,
+   "day_switches": 1.4,
+   "day_delay": 4,
+   "day_acc": 0.28095
   },
   {
    "horizon": 8,
    "current": false,
-   "change": 0.59042,
+   "change": 0.64417,
    "burst_delay": 50,
-   "burst_glare": 33.15,
-   "day_glare": 21.45,
-   "day_switches": 2.225,
-   "day_delay": 3.5,
-   "day_acc": 0.29467
+   "burst_glare": 49.125,
+   "day_glare": 29.1,
+   "day_switches": 1.4,
+   "day_delay": 4,
+   "day_acc": 0.28052
   }
  ],
  "horizon_rule": {
   "burst_delay": 50,
-  "burst_glare": 33.15,
-  "day_glare": 22.85,
-  "day_switches": 4.375,
-  "day_delay": 6.95238,
-  "day_acc": 0.27896
+  "burst_glare": 49.125,
+  "day_glare": 29.7,
+  "day_switches": 3.225,
+  "day_delay": 5.25,
+  "day_acc": 0.27289
  }
 }

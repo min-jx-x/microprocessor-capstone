@@ -60,18 +60,18 @@ def test_manual_is_immediate():
 
 class _Fake:
     """hold_if_close만 시험하려고 AIPolicy의 lut·deadband만 흉내 낸다."""
-    lut = [0.6473, 0.7563, 1.0]
+    lut = [0.6796, 0.7797, 1.0]          # 11/1 센서 고정 후 lut.json
 
     def __init__(self, mode):
         self.deadband = mode
 
 
 @pytest.mark.parametrize("mode, proposed, cur, t_need, expected", [
-    ("brighter", 2, 0, 0.775, 0),   # 스탠드 7, 0단계: AI가 2단계를 골라도 1단계보다 나쁘면 유지
-    ("brighter", 1, 0, 0.775, 1),   # 확실히 나으면 바꾼다
+    ("brighter", 2, 0, 0.781, 0),   # 스탠드 7, 0단계(278.3 lux), 목표 320: AI가 2단계를 골라도 1단계보다 나쁘면 유지
+    ("brighter", 1, 0, 0.781, 1),   # 확실히 나으면 바꾼다
     ("brighter", 0, 2, 1.0, 0),     # 어둡게 미리(선제 차광)는 그대로
     ("both", 0, 2, 1.0, 2),         # both는 선제 차광도 막는다
-    ("off", 2, 0, 0.775, 2),
+    ("off", 2, 0, 0.781, 2),
 ])
 def test_ai_deadband(mode, proposed, cur, t_need, expected):
     from pi.ai.policy import AIPolicy
