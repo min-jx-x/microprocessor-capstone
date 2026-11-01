@@ -47,9 +47,9 @@ def test_env_float(monkeypatch):
 
 
 def test_new_process_defaults_and_overrides():
-    assert _config_in_new_process({}) == ("ai", 330.0)
-    assert _config_in_new_process({"LIGHTQ_POLICY": "rule", "LIGHTQ_TARGET_DAY_LUX": "320"}) == ("rule", 320.0)
-    assert _config_in_new_process({"LIGHTQ_TARGET_DAY_LUX": "abc"}) == ("ai", 330.0)
+    assert _config_in_new_process({}) == ("ai", 320.0)
+    assert _config_in_new_process({"LIGHTQ_POLICY": "rule", "LIGHTQ_TARGET_DAY_LUX": "310"}) == ("rule", 310.0)
+    assert _config_in_new_process({"LIGHTQ_TARGET_DAY_LUX": "abc"}) == ("ai", 320.0)
 
 
 def test_policy_rule_from_env(monkeypatch):
