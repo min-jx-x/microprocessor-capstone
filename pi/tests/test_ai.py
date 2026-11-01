@@ -52,7 +52,7 @@ def test_stale_model_starts_with_rule(monkeypatch):
     from pi.control.loop import Controller
     sensor, relays, clock, outdoor = build_devices(False, 0, "12:00")
     monkeypatch.setattr(config, "LUT_T", [0.06, 0.17, 0.36, 0.47, 0.70, 1.0])
-    ctrl = Controller(sensor, relays, clock, outdoor, None)
+    ctrl = Controller(sensor, relays, clock, outdoor, None, policy="ai")   # AI를 골라도
     assert ctrl.ai_meta["stale"] and ctrl.brain == "rule"
     assert "ai" in ctrl.policies                 # 웹에서 직접 고를 수는 있음
 

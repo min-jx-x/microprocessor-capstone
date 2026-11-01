@@ -6,6 +6,27 @@
 import os
 
 
+def env_float(name: str, default: float) -> float:
+    """환경변수를 0보다 큰 숫자로 읽는다. 비었거나 잘못된 값이면 기본값 (서비스가 부팅 중 죽지 않게)."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+        if value > 0:
+            return value
+    except ValueError:
+        pass
+    print(f"[config] {name}={raw!r} 은(는) 쓸 수 없는 값이라 기본값 {default} 사용")
+    return default
+
+
+def env_policy(value) -> str:
+    """LIGHTQ_POLICY 값 → "rule" 또는 "ai". 비었거나 모르는 값이면 시연에 안전한 rule."""
+    v = (value or "").strip().lower()
+    return v if v in ("rule", "ai") else "rule"
+
+
 # ---------------------------------------------------------------------------
 # 하드웨어 연결
 # ---------------------------------------------------------------------------
@@ -84,6 +105,11 @@ AI_REPORT_PATH = os.environ.get(
     "LIGHTQ_AI_REPORT",
     "pi/data/ai_report.json" if LEVEL_MODE == 3 else "pi/data/ai_report_6level.json")
 
+# 시작할 때 쓸 판단 방식 (rule | ai). 기본은 규칙: 11/1 잡음 실험에서 센서 잡음 ±1%일 때
+# 시연 순서(스탠드 2→10→7→2)를 AI는 50회 중 12회 틀리고(스탠드 7에서 2단계로 감) 규칙은 0회였다.
+# 환경변수 LIGHTQ_POLICY 또는 python -m pi.app --policy ai 로 바꾼다. 웹에서 바꾸는 것은 그대로 됨(재시작하면 이 값으로)
+DEFAULT_POLICY = env_policy(os.environ.get("LIGHTQ_POLICY"))
+
 # ---------------------------------------------------------------------------
 # 시간대와 목표 조도 (Uno 시절 params.h 값을 이어받음, 팀 합의 후 조정)
 # ---------------------------------------------------------------------------
@@ -105,7 +131,8 @@ TARGET_WAKE_LUX = 200.0        # 기상 시각 이후 아침 목표
 #   decide_rule을 실측 lux로 반복 적용하면 목표 320~340에서 스탠드 2→10→7→2 순서가 2→0→1→2단계로 수렴한다
 #   (시작 단계 0/1/2 무관. 스탠드 2·5 → 2단계, 10 → 0단계). 330은 그 범위 가운데.
 #   500은 스탠드 10에서도 2단계(가장 투명)를 골라 뿌예지지 않았다. 검증: pi/tests/test_decide.py
-TARGET_DAY_LUX = 330.0
+#   현장 잡광이 달라 순서가 안 맞으면 환경변수 LIGHTQ_TARGET_DAY_LUX로 덮어쓴다 (deploy/README.md)
+TARGET_DAY_LUX = env_float("LIGHTQ_TARGET_DAY_LUX", 330.0)
 
 # ---------------------------------------------------------------------------
 # 단계별 상대 투과율 (가장 밝은 단계 = 1.0 기준)
