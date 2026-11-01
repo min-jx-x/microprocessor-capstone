@@ -1,5 +1,7 @@
 """음성(문장) 명령 테스트: 숫자 뽑기, 분류기 정확도, 동작 매핑, LLM 폴백, 웹 API."""
 import csv
+import threading
+import time
 
 import pytest
 
@@ -114,6 +116,41 @@ def test_low_confidence_goes_to_llm(ctrl, model):
     r = h.handle("오늘 기분이 좀 그래")
     assert llm.calls == 1 and r["source"] == "llm" and r["level_after"] == 0
     assert r["reply"] == "편히 쉬시게 가릴게요"
+
+
+class SlowLLM(FakeLLM):
+    """LLM 응답이 늦는 상황: release()를 부를 때까지 interpret()가 돌아오지 않는다."""
+    def __init__(self, answer):
+        super().__init__(answer)
+        self.entered = threading.Event()
+        self.go = threading.Event()
+
+    def interpret(self, text, state):
+        self.entered.set()
+        assert self.go.wait(5), "테스트가 LLM을 풀어 주지 않음"
+        return super().interpret(text, state)
+
+
+def test_recent_not_blocked_while_llm_thinks(ctrl, model):
+    # LLM이 생각하는 동안에도 화면(/api/state → recent())은 바로 기록을 받아야 한다
+    llm = SlowLLM({"action": "privacy", "level": None, "reply": "가릴게요"})
+    h, clock = make(ctrl, model, llm)
+    h.handle("지금 상태 알려줘")                       # 분류기로 바로 처리 (LLM 안 씀)
+    worker = threading.Thread(target=h.handle, args=("오늘 기분이 좀 그래",), daemon=True)
+    worker.start()
+    try:
+        assert llm.entered.wait(2), "LLM까지 가지 않음"
+        t0 = time.perf_counter()
+        logs = h.recent()
+        assert time.perf_counter() - t0 < 0.5
+        assert [r["text"] for r in logs] == ["지금 상태 알려줘"]
+    finally:
+        llm.go.set()
+        worker.join(5)
+    assert not worker.is_alive()
+    logs = h.recent()
+    assert [r["text"] for r in logs] == ["오늘 기분이 좀 그래", "지금 상태 알려줘"]
+    assert logs[0]["id"] == logs[1]["id"] + 1 and logs[0]["source"] == "llm"
 
 
 def test_confident_command_skips_llm(ctrl, model):
