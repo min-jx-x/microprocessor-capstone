@@ -107,7 +107,7 @@ bash deploy/install_service.sh "--real --start 11:00 --speed 0"   # 부팅하면
 - 핫스팟을 켜면 Pi의 인터넷이 끊깁니다. 코드 업데이트는 `bash deploy/hotspot.sh off` → `git pull` → `bash deploy/hotspot.sh on 비밀번호`
 - 상태: `systemctl status lightq`, 로그: `journalctl -u lightq -f`, 해제: `bash deploy/install_service.sh remove`
 - 판단 방식은 기본 **AI**입니다. 시연 중 문제가 생기면 웹에서 바로 규칙으로 바꿉니다 (재시작하면 설정값으로 돌아옴). 재시작해도 규칙으로 두려면: `echo LIGHTQ_POLICY=rule | sudo tee -a /etc/default/lightq && sudo systemctl restart lightq` (다시 AI로: 그 줄을 지우거나 `LIGHTQ_POLICY=ai`)
-- 현장 조정 (주간 목표, 기본 330 lux): `echo LIGHTQ_TARGET_DAY_LUX=320 | sudo tee -a /etc/default/lightq && sudo systemctl restart lightq` → `journalctl -u lightq | grep 판단` 에 `판단 방식 ai, 주간 목표 320 lux`가 나오면 적용됨. 같은 줄이 두 번 있으면 아래 줄이 적용되니 `sudo nano /etc/default/lightq`로 하나만 남깁니다. `install_service.sh`를 다시 돌려도 `LIGHTQ_ARGS` 줄만 바뀌고 이 줄은 남습니다
+- 현장 조정 (주간 목표, 기본 320 lux, 시연 순서가 맞는 범위 310~330): `echo LIGHTQ_TARGET_DAY_LUX=310 | sudo tee -a /etc/default/lightq && sudo systemctl restart lightq` → `journalctl -u lightq | grep 판단` 에 `판단 방식 ai, 주간 목표 310 lux`가 나오면 적용됨. 같은 줄이 두 번 있으면 아래 줄이 적용되니 `sudo nano /etc/default/lightq`로 하나만 남깁니다. `install_service.sh`를 다시 돌려도 `LIGHTQ_ARGS` 줄만 바뀌고 이 줄은 남습니다
 
 ## 문제 해결
 
