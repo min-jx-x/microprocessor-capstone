@@ -351,9 +351,9 @@ const MAX_REC_S = 8;
 let micMode = null;           // "whisper" | "browser" | null
 let micBusy = false;
 
-function showResult(d) {
+function showResult(d, note = "") {
   const box = $("voice-reply");
-  box.textContent = (d.heard ? `"${d.heard}" → ` : "") + d.reply;
+  box.textContent = (note ? note + " · " : "") + (d.heard ? `"${d.heard}" → ` : "") + d.reply;
   box.classList.toggle("fail", d.source === "none" || d.action === "cooldown");
   speak(d.reply);
 }
@@ -462,10 +462,21 @@ async function recStart() {
   m.recording = m.ring.slice();             // 누르기 직전 0.5초부터
   m.ring = [];
   m.ringLen = 0;
-  m.timer = setTimeout(recStop, MAX_REC_S * 1000);
+  m.timer = setTimeout(() => stopOnce(`${MAX_REC_S}초가 지나 보냈어요`), MAX_REC_S * 1000);
 }
 
-async function recStop() {
+// 녹음을 끝내고 보낸다. 손을 뗄 때(micUp)와 8초 자동 종료가 겹쳐도 한 번만 보내고,
+// micBusy는 보내기가 끝난 뒤 여기서만 푼다.
+let stopping = null;
+function stopOnce(note = "") {
+  if (!stopping) {
+    micIdle();
+    stopping = recStop(note).finally(() => { micBusy = false; stopping = null; });
+  }
+  return stopping;
+}
+
+async function recStop(note = "") {
   if (!live || !live.recording) return;
   const chunks = live.recording;
   live.recording = null;
@@ -479,7 +490,7 @@ async function recStop() {
     box.classList.add("fail");
     return;
   }
-  box.textContent = "알아듣는 중…";
+  box.textContent = (note ? note + " · " : "") + "알아듣는 중…";
   const form = new FormData();
   form.append("audio", wav.blob, "voice.wav");
   form.append("device", $("voice-device").value.trim());
@@ -487,7 +498,7 @@ async function recStop() {
     const res = await fetch("/api/voice/audio", { method: "POST", body: form });
     const d = await res.json();
     if (!res.ok) throw new Error(d.error || res.status);
-    showResult(d);
+    showResult(d, note);
     refresh();
   } catch (e) {
     box.textContent = "음성 인식 실패: " + e.message + " (입력칸을 써 주세요)";
@@ -548,9 +559,7 @@ const micUp = async () => {
   pressed = false;
   if (!micBusy) return;
   if (micMode === "whisper") {
-    micIdle();
-    await recStop();
-    micBusy = false;
+    await stopOnce();                       // 이미 자동 종료로 보내는 중이면 그것을 기다린다
   } else if (srec) {
     srec.stop();                            // onend에서 정리
   }
