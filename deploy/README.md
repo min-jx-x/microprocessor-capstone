@@ -106,8 +106,8 @@ bash deploy/install_service.sh "--real --start 11:00 --speed 0"   # 부팅하면
 - 휴대폰: Wi-Fi `LightQ` 접속 → `http://10.42.0.1:5000` (주소는 `hotspot.sh`가 출력, 확인 필요)
 - 핫스팟을 켜면 Pi의 인터넷이 끊깁니다. 코드 업데이트는 `bash deploy/hotspot.sh off` → `git pull` → `bash deploy/hotspot.sh on 비밀번호`
 - 상태: `systemctl status lightq`, 로그: `journalctl -u lightq -f`, 해제: `bash deploy/install_service.sh remove`
-- 판단 방식은 기본 **규칙**입니다 (AI는 센서 잡음에 약해 시연 순서를 틀릴 때가 있음). 웹에서 AI로 바꿔도 재시작하면 규칙으로 돌아옵니다. AI로 시작하려면 `/etc/default/lightq`에 `LIGHTQ_POLICY=ai`
-- 현장 조정 (주간 목표, 기본 330 lux): `echo LIGHTQ_TARGET_DAY_LUX=320 | sudo tee -a /etc/default/lightq && sudo systemctl restart lightq` → `journalctl -u lightq | grep 판단` 에 `판단 방식 rule, 주간 목표 320 lux`가 나오면 적용됨. `install_service.sh`를 다시 돌려도 `LIGHTQ_ARGS` 줄만 바뀌고 이 줄은 남습니다
+- 판단 방식은 기본 **AI**입니다. 시연 중 문제가 생기면 웹에서 바로 규칙으로 바꿉니다 (재시작하면 설정값으로 돌아옴). 재시작해도 규칙으로 두려면: `echo LIGHTQ_POLICY=rule | sudo tee -a /etc/default/lightq && sudo systemctl restart lightq` (다시 AI로: 그 줄을 지우거나 `LIGHTQ_POLICY=ai`)
+- 현장 조정 (주간 목표, 기본 330 lux): `echo LIGHTQ_TARGET_DAY_LUX=320 | sudo tee -a /etc/default/lightq && sudo systemctl restart lightq` → `journalctl -u lightq | grep 판단` 에 `판단 방식 ai, 주간 목표 320 lux`가 나오면 적용됨. 같은 줄이 두 번 있으면 아래 줄이 적용되니 `sudo nano /etc/default/lightq`로 하나만 남깁니다. `install_service.sh`를 다시 돌려도 `LIGHTQ_ARGS` 줄만 바뀌고 이 줄은 남습니다
 
 ## 문제 해결
 
