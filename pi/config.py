@@ -21,10 +21,14 @@ def env_float(name: str, default: float) -> float:
     return default
 
 
-def env_policy(value) -> str:
-    """LIGHTQ_POLICY 값 → "rule" 또는 "ai". 비었거나 모르는 값이면 시연에 안전한 rule."""
+def env_policy(value, default: str = "ai") -> str:
+    """LIGHTQ_POLICY 값 → "ai" 또는 "rule". 비었으면 기본(ai), 모르는 값이면 경고 후 기본."""
     v = (value or "").strip().lower()
-    return v if v in ("rule", "ai") else "rule"
+    if v in ("rule", "ai"):
+        return v
+    if v:
+        print(f"[config] LIGHTQ_POLICY={value!r} 은(는) 모르는 값이라 {default} 사용 (ai 또는 rule)")
+    return default
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +76,13 @@ BH1750_READ_BYTES = 2                  # 센서 측정 데이터 바이트 수
 # ---------------------------------------------------------------------------
 
 SAMPLE_PERIOD_S = 1.0          # 센서를 읽고 판단하는 주기(초)
-STABLE_COUNT = 3               # 같은 판단이 3회 연속이어야 전환
+# 단계 변경 디바운스: 정책이 현재와 다른 단계를 같은 방향(어둡게/밝게)으로 이 횟수만큼 연속 골라야 바꾼다.
+# 수동·음성 명령은 디바운스 없이 즉시 반영 (Controller.set_manual). 구현: pi/control/stabilizer.py
+SWITCH_CONFIRM_N = 3
+STABLE_COUNT = SWITCH_CONFIRM_N   # 예전 이름 (Stabilizer 기본값)
+# 센서 입력 평활: 최근 N개 측정(지금 단계에서 잰 값만)의 중앙값으로 판단한다 (규칙·AI 공통, pi/control/filter.py).
+# 11/1 실측 잡음: 스탠드 7, 고정 안 한 상태 20회 측정 표준편차 1.0~1.3%. 1이면 평활 없음
+SENSOR_MEDIAN_N = 5
 MIN_SWITCH_INTERVAL_S = 5.0    # 마지막 전환 후 최소 간격(초)
 RELAY_SETTLE_S = 0.1           # 릴레이를 바꾼 뒤 다음 동작까지 기다리는 시간(초)
 STABILIZER_INITIAL_LAST_SWITCH = -1e9  # 시작 직후 즉시 전환 가능하도록 과거 시각으로 초기화
@@ -105,9 +115,11 @@ AI_REPORT_PATH = os.environ.get(
     "LIGHTQ_AI_REPORT",
     "pi/data/ai_report.json" if LEVEL_MODE == 3 else "pi/data/ai_report_6level.json")
 
-# 시작할 때 쓸 판단 방식 (rule | ai). 기본은 규칙: 11/1 잡음 실험에서 센서 잡음 ±1%일 때
-# 시연 순서(스탠드 2→10→7→2)를 AI는 50회 중 12회 틀리고(스탠드 7에서 2단계로 감) 규칙은 0회였다.
-# 환경변수 LIGHTQ_POLICY 또는 python -m pi.app --policy ai 로 바꾼다. 웹에서 바꾸는 것은 그대로 됨(재시작하면 이 값으로)
+# 시작할 때 쓸 판단 방식 (ai | rule). 기본은 AI.
+#   중앙값 평활(SENSOR_MEDIAN_N) + 디바운스(SWITCH_CONFIRM_N) + 잡음 증강 학습 + AI 출력 데드밴드(AI_DEADBAND) 뒤
+#   시연 순서 잡음 실험(pi/ai/noise_check.py)에서 잡음 표준편차 1%·2% 모두 50회 중 0회 오판 (개선 전 9·11회)
+# 시연 중 문제가 생기면 웹에서 바로 규칙으로 바꾸거나, /etc/default/lightq에 LIGHTQ_POLICY=rule 후 재시작.
+# python -m pi.app --policy rule 처럼 실행 옵션이 환경변수보다 우선. 웹에서 바꾼 것은 재시작하면 이 값으로 돌아온다
 DEFAULT_POLICY = env_policy(os.environ.get("LIGHTQ_POLICY"))
 
 # ---------------------------------------------------------------------------
@@ -145,6 +157,12 @@ _LUT_T_DEFAULTS = {
 }
 LUT_T_DEFAULT = _LUT_T_DEFAULTS[LEVEL_MODE]
 DEADBAND_T = 0.05              # 현재 단계를 유지하는 허용 오차. 클수록 덜 바뀐다
+# AI 출력에도 같은 데드밴드를 건다: AI가 고른 단계와 현재 단계의 (지금 필요 투과율 대비) 오차 차이가 DEADBAND_T 안이면 유지.
+#   "brighter": AI가 지금보다 밝게(투명하게) 가자고 할 때만 적용 (기본). 어둡게 미리 가는 선제 차광은 그대로 둔다
+#   "both"    : 양쪽 다 적용.  "off": 끔
+# 11/1 잡음 실험(pi/ai/noise_check.py, 잡음 표준편차 2%): 끔 13/50 오판 → brighter·both 0/50.
+#   40일 시뮬레이션에서 both는 선제 차광이 막혀 반응 지연 5.1 → 6.6초(규칙 7.0초), brighter는 4.6초라 brighter를 기본으로 함
+AI_DEADBAND = "brighter"
 
 # ---------------------------------------------------------------------------
 # 실측값 반영 (pi/data/lut.json, 형식은 pi/calib.py 참고)

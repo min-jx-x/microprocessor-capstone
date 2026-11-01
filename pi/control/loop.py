@@ -13,6 +13,7 @@ from typing import Optional
 
 from pi import config
 from pi.control.decide import RulePolicy, load_lut, parse_hhmm
+from pi.control.filter import LuxMedian
 from pi.control.preference import PreferenceStore
 
 # 대현이 만든 정식 모듈이 있으면 그것을, 없으면 임시 버전을 쓴다.
@@ -35,6 +36,8 @@ class Controller:
         self.store = store
         self.driver = LevelDriver(relays)
         self.stab = Stabilizer()
+        self.lux_filter = LuxMedian()   # 판단에는 최근 SENSOR_MEDIAN_N개(지금 단계) 중앙값을 쓴다
+        self.monotonic = time.monotonic   # 안정화 시각. 잡음 실험(pi/ai/noise_check.py)에서 가상 시각으로 바꿔 끼움
         self.lut = load_lut()
         # 판단 방식: 규칙은 항상, AI는 모델 파일(config.AI_MODEL_PATH)이 있을 때만
         self.policies = {"rule": RulePolicy(self.lut)}
@@ -44,7 +47,7 @@ class Controller:
             ai = AIPolicy(self.lut)
             self.policies["ai"] = ai
             self.ai_meta = dict(ai.meta, stale=ai.stale)
-        # 시작 판단 방식: policy 인자(app --policy) → 없으면 config.DEFAULT_POLICY(LIGHTQ_POLICY, 기본 rule).
+        # 시작 판단 방식: policy 인자(app --policy) → 없으면 config.DEFAULT_POLICY(LIGHTQ_POLICY, 기본 ai).
         # AI를 골랐어도 모델이 없거나 재학습 전(stale)이면 규칙으로 시작한다. 웹에서 AI로 바꿀 수는 있음
         want = config.env_policy(policy) if policy else config.DEFAULT_POLICY
         ai_ok = self.ai_meta is not None and not self.ai_meta["stale"]
@@ -91,10 +94,11 @@ class Controller:
             # 모든 판단 방식에 매번 값을 넣어 준다 (AI는 최근 4회 기록이 필요하므로,
             # 도중에 바꿔도 바로 동작하게). 실제 적용은 선택된 방식의 답만 쓴다.
             scale = self.pref.scale()
-            answers = {k: p.decide(lux, hour, self.level, wake, scale) for k, p in self.policies.items()}
+            lux_in = self.lux_filter.add(self.level, lux)    # 센서 잡음 평활 (규칙·AI 공통)
+            answers = {k: p.decide(lux_in, hour, self.level, wake, scale) for k, p in self.policies.items()}
             cand, info = answers[self.brain]
             if self.mode == "auto":
-                now = time.monotonic()
+                now = self.monotonic()
                 nxt = self.stab.propose(cand, self.level, now)
                 if nxt is not None:
                     self.driver.apply(nxt)
@@ -106,7 +110,7 @@ class Controller:
             if learned:
                 event = learned
             self.lux = lux
-            self.info = dict(info, candidate=cand,
+            self.info = dict(info, candidate=cand, lux_in=round(lux_in, 1),
                              answers={k: v[0] for k, v in answers.items()})
             point = {"t": vtime, "hour": round(hour, 3), "lux": lux,
                      "target": info["target"], "level": self.level}

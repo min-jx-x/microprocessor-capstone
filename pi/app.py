@@ -6,7 +6,7 @@
   python -m pi.app --speed 720 --start 06:30   가상 시계를 06:30부터 시작 (시연용)
   python -m pi.app --real          Pi 5: 실제 BH1750 + GPIO 릴레이
   python -m pi.app --real --start 11:00 --speed 0   실물 시연: 시각을 11:00(주간)에 고정
-  python -m pi.app --policy ai     AI로 시작 (기본은 규칙. 환경변수 LIGHTQ_POLICY=ai 와 같음)
+  python -m pi.app --policy rule   규칙으로 시작 (기본은 AI. 환경변수 LIGHTQ_POLICY=rule 과 같음)
 
 브라우저: http://localhost:5000  (Pi 핫스팟에서는 http://10.42.0.1:5000, 확인 필요)
 """
@@ -271,7 +271,7 @@ def main() -> None:
     ap.add_argument("--start", default=None, help="가상 시계 시작 시각 HH:MM")
     ap.add_argument("--no-learn", action="store_true", help="수동 조절 학습을 끈 채로 시작 (시연용, 재부팅해도 유지)")
     ap.add_argument("--policy", choices=("rule", "ai"), default=None,
-                    help=f"시작 판단 방식. 없으면 환경변수 LIGHTQ_POLICY (지금 {config.DEFAULT_POLICY}, 기본 rule)")
+                    help=f"시작 판단 방식. 없으면 환경변수 LIGHTQ_POLICY (지금 {config.DEFAULT_POLICY}, 기본 ai)")
     args = ap.parse_args()
 
     # systemd가 서버를 끌 때(SIGTERM)도 Ctrl+C와 똑같이 처리해서 아래 finally에서 릴레이를 모두 끈다
