@@ -76,7 +76,8 @@ def test_stabilizer_resets_on_direction_change():
 
 # 11/1 실측 (잡광 140 lux, lut.json). 단계별 센서 조도 [0단계, 1단계, 2단계]
 MEASURED_LUT = [0.6473, 0.7563, 1.0]
-MEASURED_LUX = {2: [171, 188, 223], 5: [226, 241, 280], 10: [352.5, 388.3, 468.3]}
+MEASURED_LUX = {2: [170.8, 187.5, 222.5], 5: [225.8, 240.8, 280.0], 7: [280.0, 316.7, 361.7],
+                8: [270.8, 289.2, 334.2], 10: [352.5, 388.3, 468.3]}
 
 
 def _settle(lux_by_level, start, max_steps=10):
@@ -95,3 +96,13 @@ def _settle(lux_by_level, start, max_steps=10):
 def test_measured_lux_converges(stand, expected, start):
     # 주간 목표(TARGET_DAY_LUX)로 스탠드 2·5는 2단계(투명), 10은 0단계(뿌옇게)에 시작 단계와 무관하게 멈춰야 한다
     assert _settle(MEASURED_LUX[stand], start) == expected
+
+
+@pytest.mark.parametrize("start", [0, 1, 2])
+def test_demo_sequence_2_10_7_2(start):
+    # 시연 순서: 스탠드 2 → 10 → 7 → 2. 스탠드를 바꿔도 단계는 이어진다 → 2, 0, 1, 2단계
+    cur, got = start, []
+    for stand in (2, 10, 7, 2):
+        cur = _settle(MEASURED_LUX[stand], cur)
+        got.append(cur)
+    assert got == [2, 0, 1, 2]
