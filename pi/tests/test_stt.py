@@ -1,6 +1,7 @@
 """음성 → 글자(whisper.cpp 서버) 연결 테스트. 실제 whisper 없이 가짜 서버로 확인한다."""
 import io
 import json
+import os
 import struct
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -13,7 +14,7 @@ from pi.control.loop import Controller
 from pi.storage import LogStore
 from pi.voice.handler import VoiceHandler
 from pi.voice.intent import IntentModel
-from pi.voice.stt import WhisperSTT, clean_text, is_prompt_echo, is_wav
+from pi.voice.stt import WhisperSTT, clean_text, is_prompt_echo, is_wav, speech_text
 
 
 def make_wav(seconds=1.0, rate=16000) -> bytes:
@@ -100,6 +101,86 @@ def test_transcribe_drops_prompt_echo(monkeypatch, whisper_url, heard, expected)
     assert stt.transcribe(make_wav()) == expected and stt.last_error is None
 
 
+def seg(text, no_speech=0.05, logprob=-0.3):
+    """whisper-server verbose_json의 segments 한 개 (필요한 필드만)."""
+    s = {"id": 0, "text": text}
+    if no_speech is not None:
+        s["no_speech_prob"] = no_speech
+    if logprob is not None:
+        s["avg_logprob"] = logprob
+    return s
+
+
+def verbose(*segs):
+    return {"task": "transcribe", "language": "korean", "duration": 1.0,
+            "text": "".join(s["text"] for s in segs), "segments": list(segs)}
+
+
+def test_request_asks_verbose_json(whisper_url):
+    WhisperSTT(whisper_url).transcribe(make_wav())
+    body = FakeWhisper.seen["body"]
+    assert b'name="response_format"\r\n\r\nverbose_json' in body
+    assert b'name="no_language_probabilities"\r\n\r\ntrue' in body
+
+
+def test_verbose_json_keeps_speech_drops_noise():
+    text, info = speech_text(verbose(seg(" 눈부셔"), seg(" 잘 거야.", no_speech=0.9), seg(" 1단계.", logprob=-1.4)))
+    assert text.strip() == "눈부셔"
+    assert info == {"segments": 3, "dropped": 2, "max_no_speech": 0.9, "min_logprob": -1.4}
+    text, info = speech_text(verbose(seg(" 너무 밝아", no_speech=0.6, logprob=-0.4)))   # 기준과 같으면 통과
+    assert text.strip() == "너무 밝아" and info["dropped"] == 0
+
+
+def test_default_noise_thresholds():
+    # Pi 재측정 기준. 환경변수로 바꿔 둔 경우에는 기본값을 볼 수 없으니 건너뜀
+    if "LIGHTQ_STT_MIN_LOGPROB" in os.environ or "LIGHTQ_STT_PROMPT" in os.environ:
+        pytest.skip("LIGHTQ_STT_* 환경변수가 있음")
+    assert config.VOICE_STT_MIN_LOGPROB == -0.4
+    assert "사생활" not in config.VOICE_STT_PROMPT     # 노래에서 이 단어만 지어내 0단계로 실행될 뻔함
+
+
+@pytest.mark.parametrize("text,logprob,expected", [
+    (" 사생활", -0.436, ""),               # 노래만 틀었을 때 지어냄 (privacy 0.82)
+    (" 2단계로 해 줘", -0.27, "2단계로 해 줘"),   # 실제 명령 중 가장 낮았던 값
+    (" 눈부셔", -0.05, "눈부셔"),
+])
+def test_measured_logprob_cases(monkeypatch, text, logprob, expected):
+    # 재측정 값: 말 없음 확률은 모든 녹음에서 0.0이라 logprob만으로 갈린다
+    monkeypatch.setattr(config, "VOICE_STT_MIN_LOGPROB", -0.4)
+    assert speech_text(verbose(seg(text, no_speech=0.0, logprob=logprob)))[0].strip() == expected
+
+
+@pytest.mark.parametrize("data", [
+    {"text": " 너무 밝아"},                                                    # json 형식 (segments 없음)
+    {"text": " 너무 밝아", "segments": []},
+    {"text": " 너무 밝아", "segments": [{"id": 0, "text": " 너무 밝아"}]},      # 구간 값이 없는 옛 서버
+    {"text": " 너무 밝아", "segments": [seg(" 너무 밝아", no_speech=None, logprob=None)]},
+    {"text": " 너무 밝아", "segments": [{"text": " 너무 밝아", "no_speech_prob": None, "avg_logprob": "nan"}]},
+])
+def test_no_quality_fields_falls_back_to_text(data):
+    text, info = speech_text(data)
+    assert text.strip() == "너무 밝아" and info is None
+
+
+def test_one_missing_field_uses_the_other():
+    assert speech_text(verbose(seg(" 잘 거야.", no_speech=None, logprob=-2.0)))[0] == ""
+    assert speech_text(verbose(seg(" 잘 거야.", no_speech=0.95, logprob=None)))[0] == ""
+    assert speech_text(verbose(seg(" 잘 거야.", no_speech=None, logprob=-0.2)))[0].strip() == "잘 거야."
+
+
+@pytest.mark.parametrize("heard,expected", [
+    (verbose(seg(" 잘 거야.", no_speech=0.82)), ""),                 # 음악: 말 없음 확률 높음
+    (verbose(seg(" 1단계.", no_speech=0.1, logprob=-1.6)), ""),      # 음악: 자신 없이 지어냄
+    (verbose(seg(" 눈부셔", no_speech=0.02, logprob=-0.25)), "눈부셔"),
+    ({"text": " 눈부셔"}, "눈부셔"),                                   # 값 없는 서버: 지금처럼 text
+])
+def test_transcribe_noise_gate(monkeypatch, whisper_url, heard, expected):
+    monkeypatch.setattr(FakeWhisper, "reply", heard)
+    stt = WhisperSTT(whisper_url)
+    assert stt.transcribe(make_wav()) == expected and stt.last_error is None
+    assert (stt.last_quality is None) == ("segments" not in heard)
+
+
 def test_transcribe_server_down():
     stt = WhisperSTT("http://127.0.0.1:9/inference")
     assert not stt.available()
@@ -154,6 +235,37 @@ def test_audio_silence_and_errors(make_client):
     assert client.post("/api/voice/audio").status_code == 400
     client, _ = make_client(None)
     assert post_audio(client, make_wav()).status_code == 503
+
+
+@pytest.mark.parametrize("heard", [
+    seg(" 잘 거야.", no_speech=0.85, logprob=-0.3),    # 말 없음 확률로 거름
+    seg(" 사생활", no_speech=0.0, logprob=-0.436),     # 재측정: 노래에서 지어냄, logprob로 거름
+])
+def test_audio_noise_shows_not_heard(monkeypatch, tmp_path, whisper_url, heard):
+    # 실제 WhisperSTT + 가짜 서버: 음악에서 privacy 문장을 지어내도 실행하지 않고 "잘 안 들렸어요"
+    monkeypatch.setattr(config, "VOICE_STT_MIN_LOGPROB", -0.4)
+    monkeypatch.setattr(FakeWhisper, "reply", verbose(heard))
+    sensor, relays, clock, outdoor = build_devices(False, 720, "12:00")
+    ctrl = Controller(sensor, relays, clock, outdoor, None)
+    ctrl.step()
+    before = ctrl.snapshot()["level"]
+    voice = VoiceHandler(ctrl, IntentModel(), None)
+    client = create_app(ctrl, LogStore(str(tmp_path / "t.db")), voice=voice, stt=WhisperSTT(whisper_url)).test_client()
+    r = post_audio(client, make_wav())
+    d = r.get_json()
+    assert r.status_code == 200 and d["heard"] == "" and d["source"] == "none" and not d["applied"]
+    assert d["reply"].startswith("잘 안 들렸어요")
+    assert ctrl.snapshot()["level"] == before and voice.recent() == []
+
+
+@pytest.mark.parametrize("text", ["고생하셨습니다", "감사합니다", "고파", "아", "음"])
+def test_noise_words_do_nothing(make_client, text):
+    # whisper가 잡음에서 자주 내는 말: 분류기가 '관계없음'으로 보고 단계를 바꾸지 않아야 한다
+    client, ctrl = make_client(text)
+    before = ctrl.snapshot()["level"]
+    d = post_audio(client, make_wav()).get_json()
+    assert d["intent"] == "other" and d["action"] == "none" and not d["applied"]
+    assert ctrl.snapshot()["level"] == before
 
 
 def test_audio_too_long(make_client):

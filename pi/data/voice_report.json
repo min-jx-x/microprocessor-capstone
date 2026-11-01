@@ -1,8 +1,8 @@
 {
- "trained_at": "2026-10-31T12:08:20",
- "train_n": 259,
+ "trained_at": "2026-11-01T16:13:38",
+ "train_n": 271,
  "test_n": 48,
- "features": 1502,
+ "features": 1541,
  "test_accuracy": 0.875,
  "matches_sklearn": true,
  "labels": [
@@ -142,13 +142,13 @@
   },
   {
    "threshold": 0.5,
-   "coverage": 0.792,
-   "accuracy_when_handled": 0.895
+   "coverage": 0.75,
+   "accuracy_when_handled": 0.917
   },
   {
    "threshold": 0.6,
-   "coverage": 0.667,
-   "accuracy_when_handled": 0.906
+   "coverage": 0.688,
+   "accuracy_when_handled": 0.909
   },
   {
    "threshold": 0.7,

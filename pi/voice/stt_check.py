@@ -21,8 +21,11 @@ def main() -> None:
         if text is None:
             print(f"  {path}: 실패 ({stt.last_error})")
             continue
-        intent = model.predict(text) if model else ("-", 0)
-        print(f"  {path}: '{text}' ({stt.last_ms}ms) → {intent[0]} {intent[1]:.2f}")
+        intent = model.predict(text) if model and text else ("-", 0)
+        q = stt.last_quality
+        quality = "구간 값 없음(text만 사용)" if q is None else (
+            f"구간 {q['segments']}개 중 {q['dropped']}개 버림, 말 없음 최대 {q['max_no_speech']}, logprob 최저 {q['min_logprob']}")
+        print(f"  {path}: '{text}' ({stt.last_ms}ms) → {intent[0]} {intent[1]:.2f} | {quality}")
 
 
 if __name__ == "__main__":
