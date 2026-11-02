@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1b3a73">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="라이트큐">
+  <title>라이트큐</title>
+  <!-- 휴대폰 앱 화면 (홈 / 음성 / 설정). 핫스팟에는 인터넷이 없으므로 외부 글꼴·라이브러리 없이 로컬 파일만 쓴다 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}">
+  <script>
+    // 앱은 휴대폰 전용. 노트북(마우스·큰 화면)으로 열면 대시보드로 보낸다. 판별식은 index.html과 같아야 한다
+    if (!(window.matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) <= 700)) location.replace("/");
+    try { const t = localStorage.getItem("lightq-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+</head>
+<body data-tab="home">
+<header class="m-bar">
+  <h1>라이트큐</h1>
+  <div class="m-bar-right">
+    <span class="m-lock" id="lock-badge" hidden>시연 잠금</span>
+    <span class="m-conn" id="conn">연결 중</span>
+  </div>
+</header>
+
+<main class="m-main">
+  <!-- 홈: 지금 밝기와 창문, 단계 조절 -->
+  <section class="m-tab" id="tab-home" aria-label="홈">
+    <div class="m-card m-hero">
+      <div class="m-k">지금 실내 밝기 <span class="m-period" id="period">-</span></div>
+      <div class="m-lux"><b id="lux">-</b><small>lux</small></div>
+      <div class="m-line" id="status-line">-</div>
+    </div>
+
+    <div class="m-card m-window">
+      <!-- 창문 그림: 단계가 낮을수록 유리가 뿌옇다 (0 = 가장 뿌옇게, 가장 큰 단계 = 투명) -->
+      <svg viewBox="0 0 280 170" role="img" aria-labelledby="window-cap">
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#7fb6ec"/><stop offset="1" stop-color="#cfe6fb"/>
+          </linearGradient>
+          <filter id="fog" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur id="fog-blur" stdDeviation="0"/></filter>
+          <clipPath id="glass"><rect x="46" y="16" width="188" height="128" rx="4"/></clipPath>
+        </defs>
+        <rect class="w-wall" x="0" y="0" width="280" height="170" rx="14"/>
+        <g clip-path="url(#glass)">
+          <g filter="url(#fog)">
+            <rect x="46" y="16" width="188" height="128" fill="url(#sky)"/>
+            <circle cx="186" cy="50" r="17" fill="#ffd45c"/>
+            <path d="M46 116 Q90 88 136 112 T234 104 V144 H46 Z" fill="#7cc48a"/>
+            <path d="M46 128 Q110 112 170 128 T234 124 V144 H46 Z" fill="#5aa86c"/>
+            <rect x="78" y="94" width="5" height="22" fill="#7a5a3a"/>
+            <circle cx="80" cy="90" r="13" fill="#4f9a60"/>
+          </g>
+          <rect class="w-frost" id="frost" x="46" y="16" width="188" height="128"/>
+        </g>
+        <rect class="w-frame" x="46" y="16" width="188" height="128" rx="4"/>
+        <line class="w-frame" x1="140" y1="16" x2="140" y2="144"/>
+        <rect class="w-sill" x="36" y="144" width="208" height="10" rx="3"/>
+      </svg>
+      <div class="m-window-cap" id="window-cap">-</div>
+    </div>
+
+    <div class="m-card">
+      <div class="m-row">
+        <span class="m-k">투과 단계</span>
+        <button class="m-switch" id="auto-switch" role="switch" aria-checked="true"><span>자동 제어</span><i></i></button>
+      </div>
+      <div class="m-levels" style="--n: {{ num_levels }}">
+        {% for i in range(num_levels) %}
+        <button class="m-lv" data-level="{{ i }}">{{ i }}<small>{{ '불투명' if i == 0 else ('투명' if i == num_levels - 1 else '반투명') }}</small></button>
+        {% endfor %}
+      </div>
+      <button class="m-back-auto" id="home-auto" hidden>자동으로 돌아가기</button>
+      <p class="m-hint" id="home-msg">단계를 누르면 수동으로 바뀝니다</p>
+    </div>
+  </section>
+
+  <!-- 음성: 누르고 말하기 -->
+  <section class="m-tab" id="tab-voice" aria-label="음성" hidden>
+    <div class="m-now">
+      <div><span>지금 단계</span><b id="v-level">-</b></div>
+      <div><span>실내 밝기</span><b id="v-lux">-</b></div>
+      <div><span>제어</span><b id="v-mode">-</b></div>
+    </div>
+    <div class="m-notice" id="notice" hidden></div>
+    <button class="v-mic" id="mic" aria-label="누르고 있는 동안 말하기" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
+    </button>
+    <div class="v-state" id="state" aria-live="polite">버튼을 누른 채로 말해 보세요</div>
+    <div class="v-result" id="result" aria-live="polite"></div>
+    <div class="v-chips" aria-label="예시 문장">
+      <button class="v-chip" data-say="눈부셔">눈부셔</button>
+      <button class="v-chip" data-say="2단계로 바꿔 줘">2단계로 바꿔 줘</button>
+      <button class="v-chip" data-say="다 가려 줘">다 가려 줘</button>
+      <button class="v-chip" data-say="자동으로 해 줘">자동으로 해 줘</button>
+    </div>
+    <div class="v-actions">
+      <button class="v-auto" id="voice-auto">자동으로 돌아가기</button>
+      <a class="v-full" href="/?full=1">전체 대시보드</a>
+    </div>
+    <a href="#" class="m-text-toggle" id="text-toggle" aria-expanded="false" aria-controls="text-box">글자로 입력</a>
+    <form class="v-text" id="text-box" hidden>
+      <input id="voice-text" placeholder="예: 너무 밝아, 2단계로" maxlength="60" enterkeyhint="send" autocomplete="off" aria-label="명령 문장">
+      <button type="submit">보내기</button>
+    </form>
+  </section>
+
+  <!-- 설정: 기상 시간, 선호 밝기, 학습 -->
+  <section class="m-tab" id="tab-settings" aria-label="설정" hidden>
+    <div class="m-lock-note" id="lock-note" hidden>시연 중에는 선호 밝기와 학습 설정이 잠겨 있어요. 기상 시간은 바꿀 수 있어요.</div>
+
+    <div class="m-card">
+      <div class="m-k">기상 시간</div>
+      <div class="m-row">
+        <b class="m-wake" id="wake-big">--:--</b>
+        <div class="m-wake-edit">
+          <input type="time" id="wake" aria-label="기상 시간 바꾸기">
+          <button class="m-primary" id="wake-save">저장</button>
+        </div>
+      </div>
+      <p class="m-hint" id="wake-msg">20분 전부터 밝게 · 기상 준비 20 → 200 lux</p>
+    </div>
+
+    <div class="m-card">
+      <div class="m-row">
+        <span class="m-k">선호 밝기</span>
+        <select id="profile" aria-label="사용자"></select>
+      </div>
+      <div class="m-pref" id="pref-morning">
+        <div class="m-row"><span>아침</span><b data-k="t">-</b></div>
+        <div class="m-sl"><i></i><b></b></div>
+        <div class="m-ends"><span>어둡게</span><span class="m-tag" data-k="tag">-</span><span>밝게</span></div>
+      </div>
+      <div class="m-pref" id="pref-day">
+        <div class="m-row"><span>주간</span><b data-k="t">-</b></div>
+        <div class="m-sl"><i></i><b></b></div>
+        <div class="m-ends"><span>어둡게</span><span class="m-tag" data-k="tag">-</span><span>밝게</span></div>
+      </div>
+      <form class="m-add" id="profile-form">
+        <input id="new-profile" placeholder="새 사용자 이름" maxlength="20" aria-label="새 사용자 이름">
+        <button type="submit" id="profile-add">추가</button>
+        <button type="button" class="m-ghost" id="pref-reset">초기화</button>
+      </form>
+      <p class="m-hint" id="pref-msg"></p>
+    </div>
+
+    <div class="m-card">
+      <div class="m-row">
+        <span class="m-rt">수동 조절 학습</span>
+        <button class="m-switch" id="learn-switch" role="switch" aria-checked="true" aria-label="수동 조절 학습"><i></i></button>
+      </div>
+      <p class="m-hint" id="pref-text">직접 바꾼 단계를 선호도에 반영</p>
+      <div class="m-row">
+        <span class="m-rt">음성도 학습</span>
+        <button class="m-switch" id="voice-learn" role="switch" aria-checked="false" aria-label="음성 명령도 선호 학습에 반영"><i></i></button>
+      </div>
+      <p class="m-hint">음성으로 바꾼 단계도 선호도에 반영</p>
+    </div>
+
+    <a class="m-dash-link" href="/?full=1">전체 대시보드 열기</a>
+  </section>
+</main>
+
+<!-- 아래 탭 바: 가운데가 음성(마이크) -->
+<nav class="m-tabs" aria-label="화면">
+  <a href="#home" data-tab="home">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5 12 3.5l8.5 7M6 9v11h4.5v-6h3v6H18V9"/></svg>
+    <span>홈</span>
+  </a>
+  <a href="#voice" data-tab="voice" class="m-tab-mic">
+    <span class="m-mic-circle">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
+    </span>
+    <span>음성</span>
+  </a>
+  <a href="#settings" data-tab="settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg>
+    <span>설정</span>
+  </a>
+</nav>
+
+<script src="{{ url_for('static', filename='voice-rec.js') }}"></script>
+<script src="{{ url_for('static', filename='mobile.js') }}"></script>
+</body>
+</html>

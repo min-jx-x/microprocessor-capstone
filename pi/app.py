@@ -17,7 +17,7 @@ import signal
 import threading
 from datetime import datetime
 
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, redirect, render_template, request
 
 from pi import config
 from pi.control.loop import Controller
@@ -77,17 +77,60 @@ def save_audio(data: bytes) -> None:
             pass
 
 
+def device_kind(ua: str) -> str:
+    """기록에 보일 기기 종류. 관람객이 이름을 입력하지 않아도 누가 보낸 명령인지 구분되게 한다."""
+    ua = ua or ""
+    if "iPhone" in ua:
+        return "아이폰"
+    if "iPad" in ua:
+        return "아이패드"
+    if "Android" in ua:
+        if "SamsungBrowser" in ua or "SM-" in ua:
+            return "갤럭시"
+        return "폰" if "Mobile" in ua else "태블릿"
+    if "Mobile" in ua:
+        return "폰"
+    return "노트북"
+
+
+class DeviceNames:
+    """접속 주소(IP)마다 번호를 붙여 '아이폰 1', '갤럭시 2'처럼 이름을 만든다 (서버를 다시 켜면 1부터).
+    핫스팟의 휴대폰은 저마다 주소가 달라서 같은 폰은 계속 같은 번호를 받는다."""
+
+    LIMIT = 200                         # 주소가 계속 바뀌어도 메모리가 늘지 않게
+
+    def __init__(self) -> None:
+        self._num = {}
+        self._lock = threading.Lock()
+
+    def name(self, addr: str, ua: str) -> str:
+        with self._lock:
+            n = self._num.get(addr)
+            if n is None:
+                if len(self._num) >= self.LIMIT:
+                    self._num.clear()
+                n = self._num[addr] = max(self._num.values(), default=0) + 1
+        return f"{device_kind(ua)} {n}"
+
+
+DEMO_LOCK_MSG = "시연 중에는 잠겨 있어요"
+
+
 def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
-               voice: VoiceHandler = None, stt: WhisperSTT = None) -> Flask:
+               voice: VoiceHandler = None, stt: WhisperSTT = None, demo_lock: bool = None) -> Flask:
     """time_sync: 휴대폰 시각으로 시계를 맞출지. --start/--speed로 시각을 정한 시연·시뮬레이션에서는 끈다.
     voice: 문장 명령 처리기. 없으면 기본(의도 분류기 + 키가 있으면 Gemini)으로 만든다.
-    stt: 음성 → 글자 (whisper.cpp 서버). 없으면 기본 주소로 만든다. 서버가 꺼져 있으면 마이크 녹음만 안 된다."""
+    stt: 음성 → 글자 (whisper.cpp 서버). 없으면 기본 주소로 만든다. 서버가 꺼져 있으면 마이크 녹음만 안 된다.
+    demo_lock: 시연 잠금. 없으면 환경변수 LIGHTQ_DEMO_LOCK=1 로 켠다. 켜지면 관람객이 선호 밝기·사용자·학습 스위치를
+               바꾸지 못한다 (403). 기상 시간과 단계·자동 전환은 그대로 된다."""
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = config.VOICE_AUDIO_MAX_BYTES + 64 * 1024
     if voice is None:
         voice = VoiceHandler(ctrl, load_model(), GeminiFallback())
     if stt is None:
         stt = WhisperSTT()
+    if demo_lock is None:
+        demo_lock = os.environ.get("LIGHTQ_DEMO_LOCK") == "1"
 
     def voice_status() -> dict:
         return dict(voice.status(), stt=stt.available(), stt_error=stt.last_error, https_port=config.WEB_HTTPS_PORT
@@ -97,9 +140,30 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
     def body() -> dict:
         return request.get_json(silent=True) or {}
 
+    names = DeviceNames()
+
+    def device(given) -> str:
+        """보낸 쪽이 이름을 주면 그대로, 아니면 기기 종류 + 번호로 자동."""
+        given = str(given or "").strip()
+        return given or names.name(request.remote_addr or "", request.headers.get("User-Agent", ""))
+
     @app.get("/")
     def index():
         return render_template("index.html", num_levels=config.NUM_LEVELS)
+
+    @app.get("/app")
+    def mobile_app():
+        """휴대폰 앱 화면 (홈 / 음성 / 설정 탭). 휴대폰으로 /에 들어오면 이리로 넘어온다 (index.html)."""
+        return render_template("app.html", num_levels=config.NUM_LEVELS)
+
+    @app.get("/voice")
+    def voice_page():
+        """예전 음성 화면 주소. 앱의 음성 탭으로 보낸다 (대시보드 링크·북마크가 깨지지 않게)."""
+        return redirect("/app#voice")
+
+    @app.get("/favicon.ico")
+    def favicon():
+        return "", 204                  # 아이콘 파일이 없어 브라우저 콘솔에 404가 찍히지 않게
 
     @app.get("/ai")
     def ai_page():
@@ -108,15 +172,17 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
     @app.get("/api/state")
     def state():
         # 음성 명령 기록도 같이 보내서, 다른 기기에서 보낸 명령도 모든 화면에 보이게 한다
-        return jsonify(dict(ctrl.snapshot(), voice={"recent": voice.recent()[:8], "status": voice_status()}))
+        return jsonify(dict(ctrl.snapshot(), voice={"recent": voice.recent()[:8], "status": voice_status()},
+                            demo_lock=demo_lock))
 
     # ---- 음성(문장) 명령 ----
     @app.post("/api/voice")
     def voice_command():
-        """{"text": "너무 밝아", "device": "폰1"} → 의도 판단 후 단계 변경. 응답에 처리 경로(model/llm/none) 포함."""
+        """{"text": "너무 밝아"} → 의도 판단 후 단계 변경. 응답에 처리 경로(model/llm/none) 포함.
+        device를 안 주면 '아이폰 1'처럼 자동으로 붙인다."""
         b = body()
         try:
-            return jsonify(voice.handle(b.get("text", ""), b.get("device", "")))
+            return jsonify(voice.handle(b.get("text", ""), device(b.get("device"))))
         except ValueError as e:
             return jsonify(error=str(e)), 400
 
@@ -138,7 +204,7 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
         if not text:
             return jsonify(text="", heard="", applied=False, source="none", action="none",
                            reply="잘 안 들렸어요. 다시 말해 주세요", stt_ms=stt.last_ms)
-        result = voice.handle(text, request.form.get("device", ""))
+        result = voice.handle(text, device(request.form.get("device")))
         return jsonify(dict(result, heard=text, stt_ms=stt.last_ms))
 
     @app.get("/api/voice")
@@ -147,6 +213,8 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
 
     @app.post("/api/voice/learn")
     def voice_learn():
+        if demo_lock:
+            return jsonify(error=DEMO_LOCK_MSG), 403
         value = body().get("enabled")
         if not isinstance(value, bool):
             return jsonify(error="enabled는 true 또는 false"), 400
@@ -192,6 +260,8 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
 
     @app.post("/api/pref/profile")
     def pref_profile():
+        if demo_lock:
+            return jsonify(error=DEMO_LOCK_MSG), 403
         try:
             ctrl.set_profile(str(body().get("name", "")))
         except ValueError as e:
@@ -200,6 +270,8 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
 
     @app.post("/api/pref/learn")
     def pref_learn():
+        if demo_lock:
+            return jsonify(error=DEMO_LOCK_MSG), 403
         value = body().get("enabled")
         if not isinstance(value, bool):
             return jsonify(error="enabled는 true 또는 false"), 400
@@ -208,6 +280,8 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
 
     @app.post("/api/pref/reset")
     def pref_reset():
+        if demo_lock:
+            return jsonify(error=DEMO_LOCK_MSG), 403
         ctrl.reset_preference()
         return jsonify(ok=True)
 
@@ -289,6 +363,8 @@ def main() -> None:
     ctrl.start()
     # 실제 시각을 따라가는 경우에만 휴대폰 시각으로 맞춘다 (시각 고정·배속 시연은 그대로 둠)
     app = create_app(ctrl, store, time_sync=args.start is None and args.speed == 1)
+    if os.environ.get("LIGHTQ_DEMO_LOCK") == "1":
+        print("[app] 시연 잠금: 선호 밝기·사용자·학습 스위치 변경 막음 (LIGHTQ_DEMO_LOCK=1)", flush=True)
     https = None
     if os.path.exists(config.TLS_CERT) and os.path.exists(config.TLS_KEY):
         # 휴대폰 브라우저는 HTTPS에서만 마이크를 허용한다. HTTP(5000)는 그대로 두고 HTTPS를 하나 더 연다

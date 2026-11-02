@@ -6,6 +6,16 @@
   <title>라이트큐</title>
   <!-- 핫스팟에는 인터넷이 없으므로 외부 글꼴·라이브러리 없이 로컬 파일만 쓴다 -->
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script>
+    // 휴대폰(터치가 주 입력이고 화면 짧은 변 700px 이하)은 앱 화면으로. 노트북은 창을 좁혀도 대시보드 그대로.
+    // 휴대폰도 주소에 ?full=1이 있으면 대시보드 (그 페이지만. 기억하지 않아서 / 로 오면 다시 앱). 판별식은 app.html과 같아야 한다
+    (function () {
+      var full = /[?&]full=1(&|$)/.test(location.search);
+      var phone = (window.matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) <= 700);
+      if (phone && !full) location.replace("/app#home");
+      if (phone) document.documentElement.classList.add("phone");   // 휴대폰에서 본 대시보드에만 '앱으로' 버튼
+    })();
+  </script>
 </head>
 <body>
 <script>
@@ -22,6 +32,7 @@
     <span class="clock"><b id="vtime">--:--:--</b><small id="speed"></small></span>
     <span class="conn" id="conn">연결 중</span>
     <a class="nav" href="/ai">AI 설명</a>
+    <a class="nav phone-only" href="/app#home">앱으로</a>
     <button class="theme" id="theme" aria-label="화면 테마 바꾸기">테마: 자동</button>
   </div>
 </header>
@@ -51,28 +62,6 @@
       </div>
       <div class="ends"><span>불투명</span><span id="films">-</span><span>투명</span></div>
       <p class="hint">단계를 누르면 수동으로 바뀝니다. 다시 맡기려면 자동 제어를 켜세요.</p>
-    </div>
-
-    <div class="card" id="voice-card">
-      <div class="row">
-        <div class="lb">음성 명령</div>
-        <span class="sub" id="voice-engine">-</span>
-      </div>
-      <!-- 마이크 버튼은 브라우저가 음성 인식을 허용할 때만 보인다 (노트북: localhost 접속) -->
-      <button class="mic" id="mic" hidden>누르고 있는 동안 말하기</button>
-      <div class="row add">
-        <input id="voice-text" placeholder="예: 너무 밝아, 2단계로" maxlength="60" enterkeyhint="send" autocomplete="off" aria-label="명령 문장">
-        <button id="voice-send" class="primary">보내기</button>
-      </div>
-      <p class="hint" id="voice-hint">휴대폰은 입력칸을 누르고 키보드의 마이크 버튼으로 말해도 됩니다</p>
-      <div class="voice-reply" id="voice-reply" aria-live="polite"></div>
-      <ul class="voice-log" id="voice-log"></ul>
-      <div class="row add">
-        <input id="voice-device" placeholder="기기 이름 (선택)" maxlength="16" aria-label="기기 이름">
-        <button class="switch" id="voice-learn" role="switch" aria-checked="false" aria-label="음성 명령도 선호 학습에 반영">
-          <span>음성도 학습</span><i></i>
-        </button>
-      </div>
     </div>
 
     <div class="card">
@@ -163,6 +152,11 @@
         <button class="switch" id="learn-switch" role="switch" aria-checked="true" aria-label="수동 조절 학습"><i></i></button>
       </div>
       <p class="sub" id="pref-text">직접 바꾼 단계를 선호도에 반영</p>
+      <div class="row">
+        <span class="rt">음성도 학습</span>
+        <button class="switch" id="voice-learn" role="switch" aria-checked="false" aria-label="음성 명령도 선호 학습에 반영"><i></i></button>
+      </div>
+      <p class="sub">음성으로 바꾼 단계도 선호도에 반영</p>
     </div>
   </section>
 </main>

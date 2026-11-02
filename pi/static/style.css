@@ -19,6 +19,7 @@
   color-scheme: dark; }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* .row·.card의 display:flex가 hidden을 덮지 않게 */
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--ink); display: flex; flex-direction: column; font-size: 14px; }
 
@@ -152,6 +153,8 @@ select, .add input { font: inherit; padding: 6px 8px; border: 1.5px solid var(--
 .nav { color: #fff; text-decoration: none; font-size: 13px; font-weight: 700; border: 1.5px solid rgba(255,255,255,.35);
   border-radius: 999px; padding: 4px 12px; white-space: nowrap; }
 .nav:hover { border-color: #fff; }
+.nav.phone-only { display: none; }                 /* 휴대폰에서 ?full=1로 본 대시보드에만 '앱으로' */
+html.phone .nav.phone-only { display: inline-block; }
 
 /* AI 설명 페이지: 위에서 아래로 읽는 한 열. 글은 줄이고 큰 숫자와 그래프 위주 */
 body.doc { height: auto; }
@@ -222,14 +225,3 @@ table.data tr.base td { color: var(--muted); }
   .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .flow .node:not(:last-child)::after { content: none; }
 }
-
-/* 음성 명령 */
-.mic { width: 100%; height: 52px; font-size: 16px; font-weight: 700; border: 2px solid var(--accent); color: var(--accent);
-  border-radius: 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
-.mic.on { background: var(--accent); color: #fff; }
-.voice-reply { min-height: 20px; font-size: 15px; font-weight: 700; color: var(--accent); }
-.voice-reply.fail { color: var(--danger); }
-.voice-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto; }
-.voice-log li { background: var(--soft); border-radius: 8px; padding: 4px 8px; font-size: 12px; color: var(--muted); }
-.voice-log li b { color: var(--ink); font-weight: 600; }
-.voice-log .src { font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; margin-left: 4px; }
