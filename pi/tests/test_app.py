@@ -113,15 +113,67 @@ def test_ai_report(client, monkeypatch, tmp_path):
     assert client.get("/api/ai/report").get_json() == {"levels": 3}
 
 
-def test_voice_page(client):
-    r = client.get("/voice")
+def test_app_page_and_routes(client):
+    r = client.get("/app")
     assert r.status_code == 200
     html = r.get_data(as_text=True)
-    assert "voice-rec.js" in html and "voice.js" in html and "/?full=1" in html
+    for part in ("voice-rec.js", "mobile.js", "mobile.css", 'href="#home"', 'href="#voice"', 'href="#settings"', "/?full=1"):
+        assert part in html
+    r = client.get("/voice")                                 # 예전 음성 화면 주소는 앱 음성 탭으로
+    assert r.status_code == 302 and r.headers["Location"].endswith("/app#voice")
     dash = client.get("/").get_data(as_text=True)
-    assert 'href="/voice"' in dash                          # 헤더 '음성' 버튼
-    assert 'location.replace("/voice")' in dash             # 휴대폰 폭이면 음성 화면으로
+    assert 'href="/voice"' in dash and 'href="/app"' in dash  # 헤더 '음성'·'앱' 버튼
+    assert 'location.replace("/app#home")' in dash          # 휴대폰 폭이면 앱 화면으로
     assert 'id="voice-device"' not in dash                  # 기기 이름은 자동
+    assert client.get("/favicon.ico").status_code == 204
+
+
+def _lock_client(tmp_path, lock):
+    sensor, relays, clock, outdoor = build_devices(False, 720, "12:00")
+    store = LogStore(str(tmp_path / "lock.db"))
+    ctrl = Controller(sensor, relays, clock, outdoor, store)
+    ctrl.step()
+    return create_app(ctrl, store, demo_lock=lock).test_client()
+
+
+LOCKED_CALLS = [
+    ("/api/pref/profile", {"name": "관람객"}),
+    ("/api/pref/learn", {"enabled": False}),
+    ("/api/pref/reset", {}),
+    ("/api/voice/learn", {"enabled": True}),
+]
+
+
+def test_demo_lock_on(tmp_path):
+    c = _lock_client(tmp_path, True)
+    assert c.get("/api/state").get_json()["demo_lock"] is True
+    for url, data in LOCKED_CALLS:
+        r = c.post(url, json=data)
+        assert r.status_code == 403, url
+        assert r.get_json()["error"] == "시연 중에는 잠겨 있어요"
+    st = c.get("/api/state").get_json()
+    assert "관람객" not in st["pref"]["profiles"]           # 실제로 바뀌지 않음
+    # 기상 시간과 단계·자동 전환은 잠그지 않는다
+    assert c.post("/api/settings", json={"wake_time": "06:45"}).status_code == 200
+    assert c.post("/api/level", json={"level": 1}).status_code == 200
+    assert c.post("/api/mode", json={"mode": "auto"}).status_code == 200
+    assert c.get("/api/state").get_json()["wake_time"] == "06:45"
+
+
+def test_demo_lock_off(tmp_path, monkeypatch):
+    monkeypatch.delenv("LIGHTQ_DEMO_LOCK", raising=False)
+    c = _lock_client(tmp_path, None)                        # 환경변수가 없으면 꺼짐
+    assert c.get("/api/state").get_json()["demo_lock"] is False
+    for url, data in LOCKED_CALLS:
+        assert c.post(url, json=data).status_code == 200, url
+    assert "관람객" in c.get("/api/state").get_json()["pref"]["profiles"]
+
+
+def test_demo_lock_from_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("LIGHTQ_DEMO_LOCK", "1")
+    c = _lock_client(tmp_path, None)
+    assert c.get("/api/state").get_json()["demo_lock"] is True
+    assert c.post("/api/pref/reset", json={}).status_code == 403
 
 
 def test_voice_device_auto_name():

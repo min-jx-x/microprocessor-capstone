@@ -158,6 +158,15 @@ function render(st) {
   drawChart(st.history, st.sim);
   drawLevels(st.history, st.num_levels);
   renderVoice(st.voice);
+  renderLock(!!st.demo_lock);
+}
+
+// 시연 잠금(LIGHTQ_DEMO_LOCK=1): 상태만 보이고, 서버가 거부할 조작은 눌리지 않게 막는다. 해제는 환경변수로
+const LOCKED_IDS = ["profile", "new-profile", "profile-add", "pref-reset", "learn-switch", "voice-learn"];
+function renderLock(on) {
+  const title = document.querySelector(".col-title");
+  title.textContent = on ? "개인 맞춤 설정 · 시연 잠금 (기상 시간만 변경 가능)" : "개인 맞춤 설정";
+  LOCKED_IDS.forEach((id) => { $(id).disabled = on; });
 }
 
 function renderPref(p) {
