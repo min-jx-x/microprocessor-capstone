@@ -157,7 +157,7 @@ function render(st) {
   $("switches").textContent = st.switches;
   drawChart(st.history, st.sim);
   drawLevels(st.history, st.num_levels);
-  renderVoice(st.voice);
+  if (st.voice) setSwitch($("voice-learn"), st.voice.status.learn);
   renderLock(!!st.demo_lock);
 }
 
@@ -274,106 +274,8 @@ function syncTime() {
   post("/api/time", { local }).catch(() => {});
 }
 
-// ---------- 음성(문장) 명령 ----------
-// 녹음·전송은 voice-rec.js (음성 화면 /voice와 같은 코드). 의도 판단(분류기 → 필요하면 LLM)은 Pi가 한다.
-// 기록 3개만 보여 준다. 기기 이름은 서버가 자동으로 붙인다 ('아이폰 1' 등).
-const SRC = { model: "분류기", llm: "LLM", none: "못 알아들음" };
-const LOG_N = 3;
-let voiceKey = "";
-let replyKind = "";            // 지금 voice-reply에 보이는 것: "" | "busy"(듣는 중·알아듣는 중) | "msg"
-
-function sayReply(text, fail) {
-  const box = $("voice-reply");
-  box.textContent = text;
-  box.classList.toggle("fail", !!fail);
-  replyKind = "msg";
-}
-
-function showResult(d, note = "") {
-  const said = d.heard || d.text;
-  sayReply((note ? note + " · " : "") + (said ? `"${said}" → ` : "") + d.reply, d.source === "none" || d.action === "cooldown");
-  VoiceRec.speak(d.reply);
-  refresh();
-}
-
-async function sendVoice(text) {
-  text = (text || "").trim();
-  if (!text) return;
-  sayReply("판단 중…", false);
-  try {
-    showResult(await VoiceRec.sendText(text));
-    $("voice-text").value = "";
-  } catch (e) {
-    sayReply("보내기 실패: " + e.message, true);
-  }
-}
-
-function logResult(r) {                    // 문장 → 결과 단계
-  if (r.applied && r.action === "auto") return "자동";
-  if (r.applied) return `${r.level_after}단계`;
-  if (r.source === "none") return "못 알아들음";
-  return `그대로 ${r.level_after}단계`;
-}
-
-function renderVoice(v) {
-  if (!v) return;
-  const s = v.status;
-  $("voice-engine").textContent = !s.model && !s.llm ? "모델 없음"
-    : (s.model ? "분류기" : "") + (s.model && s.llm ? " + " : "") + (s.llm ? "Gemini" : "")
-      + (s.llm && s.llm_error ? ` (LLM: ${s.llm_error})` : "")
-      + (s.stt ? " · 음성: Whisper" : "");
-  setSwitch($("voice-learn"), s.learn);
-  mic.update(s);
-  const url = VoiceRec.httpsUrl(s);
-  const hint = $("voice-hint");
-  if (mic.mode) hint.textContent = "";
-  else if (url) hint.replaceChildren("마이크로 말하려면 ", Object.assign(document.createElement("a"), { href: url, textContent: url }),
-    " 로 접속하세요 (경고가 뜨면 고급 → 계속)");
-  else hint.textContent = "이 브라우저에서는 마이크를 쓸 수 없어요. '글자로 입력'을 써 주세요";
-  const recent = v.recent.slice(0, LOG_N);
-  const key = recent.map((r) => r.id).join("|");
-  if (key === voiceKey) return;
-  voiceKey = key;
-  // 관람객이 말한 문장이 들어가므로 HTML로 넣지 않고 textContent로만 만든다
-  $("voice-log").replaceChildren(...recent.map((r) => {
-    const li = document.createElement("li");
-    const said = document.createElement("b");
-    said.textContent = `"${r.text}"`;
-    const res = document.createElement("strong");
-    res.textContent = logResult(r);
-    const meta = document.createElement("span");
-    meta.className = "meta";
-    meta.textContent = `${r.time.slice(0, 5)} · ${r.device}`;
-    const src = document.createElement("span");
-    src.className = "src";
-    src.textContent = SRC[r.source] + (r.source === "model" ? ` ${Math.round(r.confidence * 100)}%` : "");
-    li.title = r.reply;
-    li.append(said, " → ", res, meta, src);
-    return li;
-  }));
-}
-
-const MIC_TEXT = { idle: "누르고 있는 동안 말하기", listening: "듣고 있어요… 다 말하면 떼세요", thinking: "알아듣는 중…" };
-const mic = VoiceRec.attach($("mic"), {
-  mode(m) {
-    $("mic").disabled = !m;
-    $("mic-label").textContent = m ? MIC_TEXT.idle : "마이크를 쓸 수 없어요";
-  },
-  state(st, note) {
-    $("mic").classList.toggle("on", st === "listening");
-    $("mic").classList.toggle("busy", st === "thinking");
-    $("mic-label").textContent = MIC_TEXT[st];
-    if (st === "thinking") { sayReply((note ? note + " · " : "") + "알아듣는 중…", false); replyKind = "busy"; }
-    else if (st === "listening") { sayReply("", false); replyKind = "busy"; }
-    else if (replyKind === "busy") sayReply("", false);
-  },
-  interim(text) { $("voice-reply").textContent = `"${text}"`; },
-  result: showResult,
-  message: sayReply,
-});
-VoiceRec.textToggle($("text-toggle"), $("text-box"), $("voice-text"));
-$("voice-send").addEventListener("click", () => sendVoice($("voice-text").value));
-$("voice-text").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) sendVoice($("voice-text").value); });
+// ---------- 음성 학습 스위치 ----------
+// 음성 명령은 휴대폰 앱(/app)에서만 한다. 대시보드에는 '음성도 학습' 설정만 남긴다.
 $("voice-learn").addEventListener("click", () =>
   post("/api/voice/learn", { enabled: !(last && last.voice && last.voice.status.learn) }));
 

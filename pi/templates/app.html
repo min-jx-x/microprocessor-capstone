@@ -10,6 +10,8 @@
   <!-- 휴대폰 앱 화면 (홈 / 음성 / 설정). 핫스팟에는 인터넷이 없으므로 외부 글꼴·라이브러리 없이 로컬 파일만 쓴다 -->
   <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}">
   <script>
+    // 앱은 휴대폰 전용. 노트북(마우스·큰 화면)으로 열면 대시보드로 보낸다. 판별식은 index.html과 같아야 한다
+    if (!(window.matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) <= 700)) location.replace("/");
     try { const t = localStorage.getItem("lightq-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
 </head>

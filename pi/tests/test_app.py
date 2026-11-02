@@ -121,10 +121,13 @@ def test_app_page_and_routes(client):
         assert part in html
     r = client.get("/voice")                                 # 예전 음성 화면 주소는 앱 음성 탭으로
     assert r.status_code == 302 and r.headers["Location"].endswith("/app#voice")
+    assert 'location.replace("/")' in html                  # 노트북으로 열면 대시보드로
     dash = client.get("/").get_data(as_text=True)
-    assert 'href="/voice"' in dash and 'href="/app"' in dash  # 헤더 '음성'·'앱' 버튼
-    assert 'location.replace("/app#home")' in dash          # 휴대폰 폭이면 앱 화면으로
-    assert 'id="voice-device"' not in dash                  # 기기 이름은 자동
+    assert 'location.replace("/app#home")' in dash          # 휴대폰이면 앱 화면으로
+    # 음성 명령과 앱은 휴대폰에서만: 대시보드에는 음성 카드·음성/앱 버튼이 없다 ('음성도 학습' 설정만 남음)
+    assert 'id="voice-card"' not in dash and 'id="mic"' not in dash
+    assert 'href="/voice"' not in dash and 'href="/app"' not in dash
+    assert 'id="voice-learn"' in dash
     assert client.get("/favicon.ico").status_code == 204
 
 
