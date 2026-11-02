@@ -111,3 +111,35 @@ def test_ai_report(client, monkeypatch, tmp_path):
     p.write_text(json.dumps({"levels": 3}), encoding="utf-8")
     monkeypatch.setattr(config, "AI_REPORT_PATH", str(p))
     assert client.get("/api/ai/report").get_json() == {"levels": 3}
+
+
+def test_voice_page(client):
+    r = client.get("/voice")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "voice-rec.js" in html and "voice.js" in html and "/?full=1" in html
+    dash = client.get("/").get_data(as_text=True)
+    assert 'href="/voice"' in dash                          # 헤더 '음성' 버튼
+    assert 'location.replace("/voice")' in dash             # 휴대폰 폭이면 음성 화면으로
+    assert 'id="voice-device"' not in dash                  # 기기 이름은 자동
+
+
+def test_voice_device_auto_name():
+    from pi.app import DeviceNames, device_kind
+    iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1"
+    galaxy = "Mozilla/5.0 (Linux; Android 14; SM-S918N) AppleWebKit/537.36 SamsungBrowser/25.0 Chrome/121 Mobile Safari/537.36"
+    assert device_kind(iphone) == "아이폰"
+    assert device_kind(galaxy) == "갤럭시"
+    assert device_kind("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130") == "노트북"
+    names = DeviceNames()
+    assert names.name("10.42.0.5", iphone) == "아이폰 1"
+    assert names.name("10.42.0.6", galaxy) == "갤럭시 2"
+    assert names.name("10.42.0.5", iphone) == "아이폰 1"    # 같은 폰은 같은 번호
+
+
+def test_voice_command_gets_device_name(client):
+    ua = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Mobile/15E148 Safari/604.1"}
+    d = client.post("/api/voice", json={"text": "2단계로 바꿔 줘"}, headers=ua).get_json()
+    assert d["device"] == "아이폰 1"
+    d = client.post("/api/voice", json={"text": "2단계로", "device": "노트북"}).get_json()
+    assert d["device"] == "노트북"                           # 직접 준 이름은 그대로

@@ -77,6 +77,42 @@ def save_audio(data: bytes) -> None:
             pass
 
 
+def device_kind(ua: str) -> str:
+    """기록에 보일 기기 종류. 관람객이 이름을 입력하지 않아도 누가 보낸 명령인지 구분되게 한다."""
+    ua = ua or ""
+    if "iPhone" in ua:
+        return "아이폰"
+    if "iPad" in ua:
+        return "아이패드"
+    if "Android" in ua:
+        if "SamsungBrowser" in ua or "SM-" in ua:
+            return "갤럭시"
+        return "폰" if "Mobile" in ua else "태블릿"
+    if "Mobile" in ua:
+        return "폰"
+    return "노트북"
+
+
+class DeviceNames:
+    """접속 주소(IP)마다 번호를 붙여 '아이폰 1', '갤럭시 2'처럼 이름을 만든다 (서버를 다시 켜면 1부터).
+    핫스팟의 휴대폰은 저마다 주소가 달라서 같은 폰은 계속 같은 번호를 받는다."""
+
+    LIMIT = 200                         # 주소가 계속 바뀌어도 메모리가 늘지 않게
+
+    def __init__(self) -> None:
+        self._num = {}
+        self._lock = threading.Lock()
+
+    def name(self, addr: str, ua: str) -> str:
+        with self._lock:
+            n = self._num.get(addr)
+            if n is None:
+                if len(self._num) >= self.LIMIT:
+                    self._num.clear()
+                n = self._num[addr] = max(self._num.values(), default=0) + 1
+        return f"{device_kind(ua)} {n}"
+
+
 def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
                voice: VoiceHandler = None, stt: WhisperSTT = None) -> Flask:
     """time_sync: 휴대폰 시각으로 시계를 맞출지. --start/--speed로 시각을 정한 시연·시뮬레이션에서는 끈다.
@@ -97,9 +133,21 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
     def body() -> dict:
         return request.get_json(silent=True) or {}
 
+    names = DeviceNames()
+
+    def device(given) -> str:
+        """보낸 쪽이 이름을 주면 그대로, 아니면 기기 종류 + 번호로 자동."""
+        given = str(given or "").strip()
+        return given or names.name(request.remote_addr or "", request.headers.get("User-Agent", ""))
+
     @app.get("/")
     def index():
         return render_template("index.html", num_levels=config.NUM_LEVELS)
+
+    @app.get("/voice")
+    def voice_page():
+        """휴대폰 관람객용 음성 전용 화면. 휴대폰으로 /에 들어오면 이리로 넘어온다 (index.html)."""
+        return render_template("voice.html", num_levels=config.NUM_LEVELS)
 
     @app.get("/ai")
     def ai_page():
@@ -113,10 +161,11 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
     # ---- 음성(문장) 명령 ----
     @app.post("/api/voice")
     def voice_command():
-        """{"text": "너무 밝아", "device": "폰1"} → 의도 판단 후 단계 변경. 응답에 처리 경로(model/llm/none) 포함."""
+        """{"text": "너무 밝아"} → 의도 판단 후 단계 변경. 응답에 처리 경로(model/llm/none) 포함.
+        device를 안 주면 '아이폰 1'처럼 자동으로 붙인다."""
         b = body()
         try:
-            return jsonify(voice.handle(b.get("text", ""), b.get("device", "")))
+            return jsonify(voice.handle(b.get("text", ""), device(b.get("device"))))
         except ValueError as e:
             return jsonify(error=str(e)), 400
 
@@ -138,7 +187,7 @@ def create_app(ctrl: Controller, store: LogStore, time_sync: bool = False,
         if not text:
             return jsonify(text="", heard="", applied=False, source="none", action="none",
                            reply="잘 안 들렸어요. 다시 말해 주세요", stt_ms=stt.last_ms)
-        result = voice.handle(text, request.form.get("device", ""))
+        result = voice.handle(text, device(request.form.get("device")))
         return jsonify(dict(result, heard=text, stt_ms=stt.last_ms))
 
     @app.get("/api/voice")

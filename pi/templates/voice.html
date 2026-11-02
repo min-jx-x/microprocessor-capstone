@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1b3a73">
+  <title>라이트큐 음성</title>
+  <!-- 휴대폰 관람객용 음성 전용 화면. 핫스팟에는 인터넷이 없으므로 외부 글꼴·라이브러리 없이 로컬 파일만 쓴다 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='voice.css') }}">
+  <script>
+    try { const t = localStorage.getItem("lightq-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+</head>
+<body>
+<header class="v-top">
+  <div class="v-brand">라이트큐 <span class="v-conn" id="conn">연결 중</span></div>
+  <div class="v-now">
+    <div class="v-stat">
+      <span class="v-k">지금 단계</span>
+      <b><span id="level">-</span><small>/ {{ num_levels - 1 }}</small></b>
+    </div>
+    <div class="v-stat">
+      <span class="v-k">실내 밝기</span>
+      <b><span id="lux">-</span><small>lux</small></b>
+    </div>
+    <div class="v-stat v-mode">
+      <span class="v-k">제어</span>
+      <b id="mode">-</b>
+    </div>
+  </div>
+</header>
+
+<main class="v-main">
+  <div class="v-notice" id="notice" hidden></div>
+
+  <button class="v-mic" id="mic" aria-label="누르고 있는 동안 말하기" disabled>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
+  </button>
+  <div class="v-state" id="state" aria-live="polite">버튼을 누른 채로 말해 보세요</div>
+  <div class="v-result" id="result" aria-live="polite"></div>
+
+  <div class="v-chips" aria-label="예시 문장">
+    <button class="v-chip" data-say="눈부셔">눈부셔</button>
+    <button class="v-chip" data-say="2단계로 바꿔 줘">2단계로 바꿔 줘</button>
+    <button class="v-chip" data-say="다 가려 줘">다 가려 줘</button>
+    <button class="v-chip" data-say="자동으로 해 줘">자동으로 해 줘</button>
+  </div>
+</main>
+
+<footer class="v-foot">
+  <div class="v-actions">
+    <button class="v-auto" id="auto">자동으로 돌아가기</button>
+    <a class="v-full" href="/?full=1">전체 대시보드</a>
+  </div>
+  <a href="#" class="v-text-toggle" id="text-toggle" aria-expanded="false" aria-controls="text-box">글자로 입력</a>
+  <form class="v-text" id="text-box" hidden>
+    <input id="voice-text" placeholder="예: 너무 밝아, 2단계로" maxlength="60" enterkeyhint="send" autocomplete="off" aria-label="명령 문장">
+    <button type="submit">보내기</button>
+  </form>
+</footer>
+
+<script src="{{ url_for('static', filename='voice-rec.js') }}"></script>
+<script src="{{ url_for('static', filename='voice.js') }}"></script>
+</body>
+</html>
