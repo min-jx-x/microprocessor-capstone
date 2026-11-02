@@ -127,6 +127,8 @@ def test_app_page_and_routes(client):
     # 음성 명령과 앱은 휴대폰에서만: 대시보드에는 음성 카드·음성/앱 버튼이 없다 ('음성도 학습' 설정만 남음)
     assert 'id="voice-card"' not in dash and 'id="mic"' not in dash
     assert 'href="/voice"' not in dash and 'href="/app"' not in dash
+    assert 'class="nav phone-only" href="/app#home"' in dash   # 휴대폰에서 본 대시보드에만 '앱으로'
+    assert "sessionStorage" not in dash                     # ?full=1을 기억하지 않음 (탭이 대시보드에 갇히지 않게)
     assert 'id="voice-learn"' in dash
     assert client.get("/favicon.ico").status_code == 204
 

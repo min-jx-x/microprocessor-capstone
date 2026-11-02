@@ -153,6 +153,8 @@ select, .add input { font: inherit; padding: 6px 8px; border: 1.5px solid var(--
 .nav { color: #fff; text-decoration: none; font-size: 13px; font-weight: 700; border: 1.5px solid rgba(255,255,255,.35);
   border-radius: 999px; padding: 4px 12px; white-space: nowrap; }
 .nav:hover { border-color: #fff; }
+.nav.phone-only { display: none; }                 /* 휴대폰에서 ?full=1로 본 대시보드에만 '앱으로' */
+html.phone .nav.phone-only { display: inline-block; }
 
 /* AI 설명 페이지: 위에서 아래로 읽는 한 열. 글은 줄이고 큰 숫자와 그래프 위주 */
 body.doc { height: auto; }
